@@ -21,9 +21,9 @@ jobs:
 
       - name: Grab Desync
         run: | 
-          gh release download -R olbricht/desync -p "*_linux_amd64.tar.gz" -O - | tar -xzv
+          gh release download -R folbricht/desync -p "*_linux_amd64.tar.gz" -O - | tar -xzv
           chmod +x ./desync
-          
+
       - name: Build OS Image
         run: |
           # Builds mkosi.output/my-os_1.0.0.raw
