@@ -28,6 +28,12 @@ jobs:
           gh release download -R folbricht/desync -p "*_linux_amd64.tar.gz" -O - | tar -xzv
           chmod +x desync
           sudo mv desync /usr/local/bin/
+      
+      - name: Grab ORAS
+        run: | 
+          gh release download -R oras-project -p "*_linux_amd64.tar.gz" -O - | tar -xzv
+          chmod +x oras
+          sudo mv oras /usr/local/bin/
 
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@v3
@@ -46,9 +52,15 @@ jobs:
           mkdir -p ./chunk-store
           # Index file (.caibx) and chunk store output
           desync make \
-            --store=oci://ghcr.io/${{ github.repository }}/chunks:latest \
+            --store=./chunk-store \
             ./mybuntu.caibx \
             ./mkosi.output/mybuntu.raw
+            
+      - name: Push chunk store and index to GHCR using ORAS
+        run: |
+          oras push ghcr.io/${{ github.repository }}/chunks:latest \
+          ./mybuntu.caibx:application/vnd.desync.index \
+          ./chunk-store/:application/vnd.desync.chunkstore
 
       - name: Publish GitHub Release Artifacts
         uses: softprops/action-gh-release@v2
