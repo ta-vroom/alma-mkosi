@@ -8,8 +8,12 @@ env:
 on: 
   workflow_dispatch:
 
+
+
 jobs:
   build-and-chunk:
+    permissions:
+        contents: write
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -36,7 +40,7 @@ jobs:
           # Index file (.caibx) and chunk store output
           desync make \
             --store ./chunk-store \
-            ./my-os-${{ github.ref_name }}.caibx \
+            ./mybuntu.caibx \
             ./mkosi.output/mybuntu.raw
 
       - name: Publish GitHub Release Artifacts
@@ -44,5 +48,5 @@ jobs:
         with:
           tag_name: "latest"
           files: |
-            ./my-os-${{ github.ref_name }}.caibx
+            ./mybuntu.caibx
             ./chunk-store/*
