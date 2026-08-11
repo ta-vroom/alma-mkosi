@@ -17,7 +17,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
+      
       - name: Install Dependencies
         run: |
           sudo apt-get update
@@ -29,6 +29,13 @@ jobs:
           chmod +x desync
           sudo mv desync /usr/local/bin/
 
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Build OS Image
         run: |
           # Builds mkosi.output/my-os_1.0.0.raw
@@ -39,7 +46,7 @@ jobs:
           mkdir -p ./chunk-store
           # Index file (.caibx) and chunk store output
           desync make \
-            --store ./chunk-store \
+            --store=oci://ghcr.io/${{ github.repository }}/chunks:latest \
             ./mybuntu.caibx \
             ./mkosi.output/mybuntu.raw
 
@@ -49,4 +56,3 @@ jobs:
           tag_name: "latest"
           files: |
             ./mybuntu.caibx
-            ./chunk-store/*
