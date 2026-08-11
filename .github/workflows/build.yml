@@ -17,8 +17,13 @@ jobs:
       - name: Install Dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y mkosi desync systemd-repart
+          sudo apt-get install -y mkosi systemd-repart
 
+      - name: Grab Desync
+        run: | 
+          gh release download -R olbricht/desync -p "*_linux_amd64.tar.gz" -O - | tar -xzv
+          chmod +x ./desync
+          
       - name: Build OS Image
         run: |
           # Builds mkosi.output/my-os_1.0.0.raw
