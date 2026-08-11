@@ -41,6 +41,7 @@ jobs:
 
       - name: Publish GitHub Release Artifacts
         uses: softprops/action-gh-release@v2
+        tag_name: "latest"
         with:
           files: |
             ./my-os-${{ github.ref_name }}.caibx
