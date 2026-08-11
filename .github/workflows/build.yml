@@ -31,7 +31,7 @@ jobs:
       
       - name: Grab ORAS
         run: | 
-          gh release download -R oras-project -p "*_linux_amd64.tar.gz" -O - | tar -xzv
+          gh release download -R oras-project/oras -p "*_linux_amd64.tar.gz" -O - | tar -xzv
           chmod +x oras
           sudo mv oras /usr/local/bin/
 
@@ -55,7 +55,7 @@ jobs:
             --store=./chunk-store \
             ./mybuntu.caibx \
             ./mkosi.output/mybuntu.raw
-            
+
       - name: Push chunk store and index to GHCR using ORAS
         run: |
           oras push ghcr.io/${{ github.repository }}/chunks:latest \
