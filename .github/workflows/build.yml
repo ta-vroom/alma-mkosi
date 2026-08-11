@@ -29,38 +29,23 @@ jobs:
           chmod +x desync
           sudo mv desync /usr/local/bin/
       
-      - name: Grab ORAS
-        run: | 
-          gh release download -R oras-project/oras -p "*_linux_amd64.tar.gz" -O - | tar -xzv
-          chmod +x oras
-          sudo mv oras /usr/local/bin/
-
-      - name: Log in to GitHub Container Registry
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
       - name: Build OS Image
         run: |
           # Builds mkosi.output/my-os_1.0.0.raw
           sudo mkosi build
       
       - name: Chunk Image with Desync
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_UBUNTU_ACCESS_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.SECRET_KEY }}
+          AWS_DEFAULT_REGION: auto
         run: |
-          mkdir -p ./chunk-store
-          # Index file (.caibx) and chunk store output
+          S3_ENDPOINT="https://${{ secrets.CLOUDFLARE_ACCOUNT_ID }}.r2.cloudflarestorage.com"
+
           desync make \
-            --store=./chunk-store \
+            --store="s3://ubuntu/chunks/?endpoint=${R2_ENDPOINT}" \
             ./mybuntu.caibx \
             ./mkosi.output/mybuntu.raw
-
-      - name: Push chunk store and index to GHCR using ORAS
-        run: |
-          oras push ghcr.io/${{ github.repository }}/chunks:latest \
-          ./mybuntu.caibx:application/vnd.desync.index \
-          ./chunk-store/:application/vnd.desync.chunkstore
 
       - name: Publish GitHub Release Artifacts
         uses: softprops/action-gh-release@v2
