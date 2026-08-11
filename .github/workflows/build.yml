@@ -29,7 +29,7 @@ jobs:
         run: |
           # Builds mkosi.output/my-os_1.0.0.raw
           sudo mkosi build
-
+      
       - name: Chunk Image with Desync
         run: |
           mkdir -p ./chunk-store
