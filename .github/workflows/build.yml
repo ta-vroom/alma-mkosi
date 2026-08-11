@@ -40,10 +40,15 @@ jobs:
           AWS_SECRET_ACCESS_KEY: ${{ secrets.SECRET_KEY }}
           AWS_DEFAULT_REGION: auto
         run: |
-          S3_ENDPOINT="https://${{ secrets.CLOUDFLARE_ACCOUNT_ID }}.r2.cloudflarestorage.com"
+          # 1. Cloudflare R2 Endpoint Host
+          R2_HOST="${{ secrets.CLOUDFLARE_ACCOUNT_ID }}.r2.cloudflarestorage.com"
+          BUCKET_NAME="ubuntu"
 
+          # 2. Format as s3+https://
+          STORE_URL="s3+https://${R2_HOST}/${BUCKET_NAME}/chunks"
+          
           desync make \
-            --store="s3://ubuntu/chunks/?endpoint=${S3_ENDPOINT}" \
+            --store="${STORE_URL}" \
             ./mybuntu.caibx \
             ./mkosi.output/mybuntu.raw
 
