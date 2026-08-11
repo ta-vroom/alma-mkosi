@@ -30,14 +30,14 @@ jobs:
           # Builds mkosi.output/my-os_1.0.0.raw
           sudo mkosi build
 
-      # - name: Chunk Image with Desync
-      #   run: |
-      #     mkdir -p ./chunk-store
-      #     # Index file (.caibx) and chunk store output
-      #     desync make \
-      #       --store ./chunk-store \
-      #       ./my-os-${{ github.ref_name }}.caibx \
-      #       ./mkosi.output/my-os_${{ github.ref_name }}.raw
+      - name: Chunk Image with Desync
+        run: |
+          mkdir -p ./chunk-store
+          # Index file (.caibx) and chunk store output
+          desync make \
+            --store ./chunk-store \
+            ./my-os-${{ github.ref_name }}.caibx \
+            ./mkosi.output/my-os_${{ github.ref_name }}.raw
 
       - name: Publish GitHub Release Artifacts
         uses: softprops/action-gh-release@v2
