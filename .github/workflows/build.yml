@@ -1,0 +1,41 @@
+name: Build
+
+env:
+  CARGO_TERM_COLOR: always
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+on: 
+  workflow_dispatch:
+
+jobs:
+  build-and-chunk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y mkosi desync systemd-repart
+
+      - name: Build OS Image
+        run: |
+          # Builds mkosi.output/my-os_1.0.0.raw
+          sudo mkosi --version=${{ github.ref_name }} build
+
+      - name: Chunk Image with Desync
+        run: |
+          mkdir -p ./chunk-store
+          # Index file (.caibx) and chunk store output
+          desync make \
+            --store ./chunk-store \
+            ./my-os-${{ github.ref_name }}.caibx \
+            ./mkosi.output/my-os_${{ github.ref_name }}.raw
+
+      - name: Publish GitHub Release Artifacts
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            ./my-os-${{ github.ref_name }}.caibx
+            ./chunk-store/*
