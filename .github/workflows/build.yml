@@ -37,7 +37,7 @@ jobs:
           desync make \
             --store ./chunk-store \
             ./my-os-${{ github.ref_name }}.caibx \
-            ./mkosi.output/my-os_${{ github.ref_name }}.raw
+            ./mkosi.output/mybuntu.raw
 
       - name: Publish GitHub Release Artifacts
         uses: softprops/action-gh-release@v2
