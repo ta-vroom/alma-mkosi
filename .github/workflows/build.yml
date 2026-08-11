@@ -22,21 +22,22 @@ jobs:
       - name: Grab Desync
         run: | 
           gh release download -R folbricht/desync -p "*_linux_amd64.tar.gz" -O - | tar -xzv
-          chmod +x ./desync
+          chmod +x desync
+          sudo mv desync /usr/local/bin/
 
       - name: Build OS Image
         run: |
           # Builds mkosi.output/my-os_1.0.0.raw
-          sudo mkosi --version=${{ github.ref_name }} build
+          sudo mkosi build
 
-      - name: Chunk Image with Desync
-        run: |
-          mkdir -p ./chunk-store
-          # Index file (.caibx) and chunk store output
-          desync make \
-            --store ./chunk-store \
-            ./my-os-${{ github.ref_name }}.caibx \
-            ./mkosi.output/my-os_${{ github.ref_name }}.raw
+      # - name: Chunk Image with Desync
+      #   run: |
+      #     mkdir -p ./chunk-store
+      #     # Index file (.caibx) and chunk store output
+      #     desync make \
+      #       --store ./chunk-store \
+      #       ./my-os-${{ github.ref_name }}.caibx \
+      #       ./mkosi.output/my-os_${{ github.ref_name }}.raw
 
       - name: Publish GitHub Release Artifacts
         uses: softprops/action-gh-release@v2
