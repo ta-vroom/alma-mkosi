@@ -43,7 +43,7 @@ jobs:
           S3_ENDPOINT="https://${{ secrets.CLOUDFLARE_ACCOUNT_ID }}.r2.cloudflarestorage.com"
 
           desync make \
-            --store="s3://ubuntu/chunks/?endpoint=${R2_ENDPOINT}" \
+            --store="s3://ubuntu/chunks/?endpoint=${S3_ENDPOINT}" \
             ./mybuntu.caibx \
             ./mkosi.output/mybuntu.raw
 
