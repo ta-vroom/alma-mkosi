@@ -41,8 +41,8 @@ jobs:
 
       - name: Publish GitHub Release Artifacts
         uses: softprops/action-gh-release@v2
-        tag_name: "latest"
         with:
+          tag_name: "latest"
           files: |
             ./my-os-${{ github.ref_name }}.caibx
             ./chunk-store/*
