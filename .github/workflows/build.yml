@@ -32,29 +32,33 @@ jobs:
       - name: Build OS Image
         run: |
           # Builds mkosi.output/my-os_1.0.0.raw
-          sudo mkosi build
+          mkosi build
       
-      - name: Chunk Image with Desync
-        env:
-          AWS_ACCESS_KEY_ID: ${{ secrets.R2_UBUNTU_ACCESS_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.SECRET_KEY }}
-          AWS_DEFAULT_REGION: auto
+      - name: List files in output
         run: |
-          # 1. Cloudflare R2 Endpoint Host
-          R2_HOST="${{ secrets.CLOUDFLARE_ACCOUNT_ID }}.r2.cloudflarestorage.com"
-          BUCKET_NAME="ubuntu"
+          ls -la mkosi.output/
 
-          # 2. Format as s3+https://
-          STORE_URL="s3+https://${R2_HOST}/${BUCKET_NAME}/chunks"
+      # - name: Chunk Image with Desync
+      #   env:
+      #     AWS_ACCESS_KEY_ID: ${{ secrets.R2_UBUNTU_ACCESS_ID }}
+      #     AWS_SECRET_ACCESS_KEY: ${{ secrets.SECRET_KEY }}
+      #     AWS_DEFAULT_REGION: auto
+      #   run: |
+      #     # 1. Cloudflare R2 Endpoint Host
+      #     R2_HOST="${{ secrets.CLOUDFLARE_ACCOUNT_ID }}.r2.cloudflarestorage.com"
+      #     BUCKET_NAME="ubuntu"
+
+      #     # 2. Format as s3+https://
+      #     STORE_URL="s3+https://${R2_HOST}/${BUCKET_NAME}/chunks"
           
-          desync make \
-            --store="${STORE_URL}" \
-            ./mybuntu.caibx \
-            ./mkosi.output/mybuntu.raw
+      #     desync make \
+      #       --store="${STORE_URL}" \
+      #       ./mybuntu.caibx \
+      #       ./mkosi.output/mybuntu.raw
 
-      - name: Publish GitHub Release Artifacts
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: "latest"
-          files: |
-            ./mybuntu.caibx
+      # - name: Publish GitHub Release Artifacts
+      #   uses: softprops/action-gh-release@v2
+      #   with:
+      #     tag_name: "latest"
+      #     files: |
+      #       ./mybuntu.caibx
