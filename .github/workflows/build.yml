@@ -32,11 +32,11 @@ jobs:
       - name: Build OS Image
         run: |
           # Builds mkosi.output/my-os_1.0.0.raw
-          mkosi build
+          sudo mkosi build
       
       - name: List files in output
         run: |
-          ls -la mkosi.output/
+          sudo ls -la mkosi.output/
 
       # - name: Chunk Image with Desync
       #   env:
