@@ -31,7 +31,6 @@ jobs:
       
       - name: Build OS Image
         run: |
-          # Builds mkosi.output/my-os_1.0.0.raw
           sudo mkosi build
       
       - name: List files in output
