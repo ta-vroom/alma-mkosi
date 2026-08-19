@@ -57,7 +57,9 @@ jobs:
             --store="${STORE_URL}" \
             ./alma.caibx \
             ./mkosi.output/alma.raw
-
+      - name: List directory
+        run: |
+          ls -la ./mkosi.output
       - name: Generate Checksums
         run: |
           # Generate checksums for index and image files
