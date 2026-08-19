@@ -32,14 +32,14 @@ jobs:
         run: | 
           gh release download -R folbricht/desync -p "*_linux_amd64.tar.gz" -O - | tar -xzv
           chmod +x desync
-          sudo mv desync /usr/local/bin/
+          sudo cp desync /usr/local/bin/
+          mkdir -p mkosi.extra/usr/local/bin/
+          cp desync mkosi.extra/usr/local/bin/
       
       - name: Build OS Image
         run: |
           sudo mkosi build
       
-
-
       - name: Chunk Image with Desync
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.R2_UBUNTU_ACCESS_ID }}
