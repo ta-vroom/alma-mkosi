@@ -16,6 +16,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
+      - name: Compute Release Tag
+        id: vars
+        run: |
+          # Produces e.g. 2026.08.18-72 or v2026.08.18.72
+          echo "RELEASE_TAG=$(date +'%Y%m%d').${{ github.run_number }}" >> $GITHUB_ENV
       
       - name: Install Dependencies
         run: |
@@ -32,31 +38,78 @@ jobs:
         run: |
           sudo mkosi build
       
-      - name: List files in output
+
+
+      - name: Chunk Image with Desync
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_UBUNTU_ACCESS_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.SECRET_KEY }}
+          AWS_DEFAULT_REGION: auto
         run: |
-          sudo ls -la mkosi.output/
+          # 1. Cloudflare R2 Endpoint Host
+          R2_HOST="${{ secrets.CLOUDFLARE_ACCOUNT_ID }}.r2.cloudflarestorage.com"
+          BUCKET_NAME="alma"
 
-      # - name: Chunk Image with Desync
-      #   env:
-      #     AWS_ACCESS_KEY_ID: ${{ secrets.R2_UBUNTU_ACCESS_ID }}
-      #     AWS_SECRET_ACCESS_KEY: ${{ secrets.SECRET_KEY }}
-      #     AWS_DEFAULT_REGION: auto
-      #   run: |
-      #     # 1. Cloudflare R2 Endpoint Host
-      #     R2_HOST="${{ secrets.CLOUDFLARE_ACCOUNT_ID }}.r2.cloudflarestorage.com"
-      #     BUCKET_NAME="ubuntu"
-
-      #     # 2. Format as s3+https://
-      #     STORE_URL="s3+https://${R2_HOST}/${BUCKET_NAME}/chunks"
+          # 2. Format as s3+https://
+          STORE_URL="s3+https://${R2_HOST}/${BUCKET_NAME}/chunks"
           
-      #     desync make \
-      #       --store="${STORE_URL}" \
-      #       ./mybuntu.caibx \
-      #       ./mkosi.output/mybuntu.raw
+          desync make \
+            --store="${STORE_URL}" \
+            ./alma.caibx \
+            ./mkosi.output/alma.raw
 
-      # - name: Publish GitHub Release Artifacts
-      #   uses: softprops/action-gh-release@v2
-      #   with:
-      #     tag_name: "latest"
-      #     files: |
-      #       ./mybuntu.caibx
+      - name: Generate Checksums
+        run: |
+          # Generate checksums for index and image files
+          sha256sum alma.caibx > alma.caibx.sha256
+          # If publishing raw image or sysupdate manifests:
+          # sha256sum mkosi.output/alma.raw > alma.raw.sha256
+
+      - name: Stage and Upload to R2
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_UBUNTU_ACCESS_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.SECRET_KEY }}
+          AWS_DEFAULT_REGION: auto
+        run: |
+          R2_ENDPOINT="https://${{ secrets.CLOUDFLARE_ACCOUNT_ID }}.r2.cloudflarestorage.com"
+          BUCKET="alma"
+          VER="${{ env.RELEASE_TAG }}"
+
+          # 1. Always upload the Desync index (.caibx)
+          mv ./alma.caibx "alma_${VER}.caibx"
+          sha256sum "alma_${VER}.caibx" > "alma_${VER}.caibx.sha256"
+          
+          aws s3 cp "alma_${VER}.caibx" "s3://${BUCKET}/images/" --endpoint-url "$R2_ENDPOINT"
+          aws s3 cp "alma_${VER}.caibx.sha256" "s3://${BUCKET}/images/" --endpoint-url "$R2_ENDPOINT"
+
+          # 2. Check and upload UKI/EFI if present
+          if compgen -G "mkosi.output/*.efi" > /dev/null; then
+            cp mkosi.output/*.efi "alma_${VER}.efi"
+            sha256sum "alma_${VER}.efi" > "alma_${VER}.efi.sha256"
+            
+            aws s3 cp "alma_${VER}.efi" "s3://${BUCKET}/efi/" --endpoint-url "$R2_ENDPOINT"
+            aws s3 cp "alma_${VER}.efi.sha256" "s3://${BUCKET}/efi/" --endpoint-url "$R2_ENDPOINT"
+          fi
+
+          # 3. Check if RAW image exists: upload if found, skip if not
+          RAW_FILE="mkosi.output/alma.raw"
+          if [ -f "$RAW_FILE" ]; then
+            echo "Found raw image at ${RAW_FILE}. Preparing upload..."
+            
+            cp "$RAW_FILE" "alma_${VER}.raw"
+            sha256sum "alma_${VER}.raw" > "alma_${VER}.raw.sha256"
+
+            aws s3 cp "alma_${VER}.raw" "s3://${BUCKET}/images/" --endpoint-url "$R2_ENDPOINT"
+            aws s3 cp "alma_${VER}.raw.sha256" "s3://${BUCKET}/images/" --endpoint-url "$R2_ENDPOINT"
+          else
+            echo "No raw image found at ${RAW_FILE}. Skipping raw upload."
+          fi
+
+      - name: Publish GitHub Release Artifacts
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.RELEASE_TAG }}
+          name: "Release ${{ env.RELEASE_TAG }}"
+          prerelease: false
+          files: |
+            ./alma_${{ env.RELEASE_TAG }}.caibx
