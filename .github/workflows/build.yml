@@ -58,7 +58,7 @@ jobs:
           desync make \
             --store="${STORE_URL}" \
             ./alma.caibx \
-            ./mkosi.output/alma.raw
+            ./mkosi.output/alma.root-x86-64.raw
 
           desync make \
             --store="${STORE_URL}" \
@@ -82,8 +82,9 @@ jobs:
           # 1. Always upload the Desync index (.caibx)
           mv ./alma.caibx "alma_${VER}.caibx"
           mv ./alma_root_verity.caibx "alma_root_verity_${VER}.caibx"
+
           sha256sum "alma_${VER}.caibx" > "alma_${VER}.caibx.sha256"
-          sha256sum "alma_${VER}.caibx" > "alma_root_verity_${VER}.caibx"
+          sha256sum "alma_root_verity_${VER}.caibx" > "alma_root_verity_${VER}.caibx.sha256"
           
           aws s3 cp "alma_${VER}.caibx" "s3://${BUCKET}/images/" --endpoint-url "$R2_ENDPOINT"
           aws s3 cp "alma_${VER}.caibx.sha256" "s3://${BUCKET}/images/" --endpoint-url "$R2_ENDPOINT"
