@@ -42,7 +42,7 @@ jobs:
         run: |
           sudo mkosi build
       
-      - name: Chunk Image with Desync
+      - name: Chunk Images with Desync
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.R2_UBUNTU_ACCESS_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.SECRET_KEY }}
@@ -59,15 +59,15 @@ jobs:
             --store="${STORE_URL}" \
             ./alma.caibx \
             ./mkosi.output/alma.raw
+
+          desync make \
+            --store="${STORE_URL}" \
+            ./alma_root_verity.caibx \
+            ./mkosi.output/alma.root-x86-64-verity.raw
+            
       - name: List directory
         run: |
           ls -la ./mkosi.output
-      - name: Generate Checksums
-        run: |
-          # Generate checksums for index and image files
-          sha256sum alma.caibx > alma.caibx.sha256
-          # If publishing raw image or sysupdate manifests:
-          # sha256sum mkosi.output/alma.raw > alma.raw.sha256
 
       - name: Stage and Upload to R2
         env:
@@ -81,10 +81,14 @@ jobs:
 
           # 1. Always upload the Desync index (.caibx)
           mv ./alma.caibx "alma_${VER}.caibx"
+          mv ./alma_root_verity.caibx "alma_root_verity_${VER}.caibx"
           sha256sum "alma_${VER}.caibx" > "alma_${VER}.caibx.sha256"
+          sha256sum "alma_${VER}.caibx" > "alma_root_verity_${VER}.caibx"
           
           aws s3 cp "alma_${VER}.caibx" "s3://${BUCKET}/images/" --endpoint-url "$R2_ENDPOINT"
           aws s3 cp "alma_${VER}.caibx.sha256" "s3://${BUCKET}/images/" --endpoint-url "$R2_ENDPOINT"
+          aws s3 cp "alma_root_verity_${VER}.caibx" "s3://${BUCKET}/images/" --endpoint-url "$R2_ENDPOINT"
+          aws s3 cp "alma_root_verity_${VER}.caibx.sha256" "s3://${BUCKET}/images/" --endpoint-url "$R2_ENDPOINT"
 
           # 2. Check and upload UKI/EFI if present
           if compgen -G "mkosi.output/*.efi" > /dev/null; then
