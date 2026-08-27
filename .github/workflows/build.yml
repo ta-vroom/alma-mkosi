@@ -60,7 +60,7 @@ jobs:
       - name: Chunk Images with Desync
         run: |
           STORE_URL="oci+https://ghcr.io/${{ steps.image_case.outputs.image }}"
-          
+          mkdir -p local-store
           desync make --store=local-store ./alma.caibx ./mkosi.output/alma.root-x86-64.raw
           desync copy -n 2 local-store "${STORE_URL}"
             
