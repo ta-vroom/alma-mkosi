@@ -57,15 +57,23 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Chunk Images with Desync
+      - name: Chunk Images with Desync (with Retries)
         run: |
           STORE_URL="oci+https://ghcr.io/${{ steps.image_case.outputs.image }}"
           
-          desync make -n 2 \
-            --store="${STORE_URL}" \
-            ./alma.caibx \
-            ./mkosi.output/alma.root-x86-64.raw
-            
+          MAX_RETRIES=5
+          COUNT=0
+          
+          until desync make -n 4 --store="${STORE_URL}" ./alma.caibx ./mkosi.output/alma.root-x86-64.raw; do
+            COUNT=$((COUNT+1))
+            if [ $COUNT -ge $MAX_RETRIES ]; then
+              echo "Desync failed after $MAX_RETRIES attempts."
+              exit 1
+            fi
+            echo "Chunk upload dropped or timed out. Retrying ($COUNT/$MAX_RETRIES) in 5s..."
+            sleep 5
+          done
+
       - name: List directory
         run: |
           ls -la ./mkosi.output
