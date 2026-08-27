@@ -17,6 +17,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Lowercase Registry and Image
+        id: image_case
+        run: |
+          # Extract just the lowercased repository name for Buildah and Push
+          IMAGE_LOWER=$(echo "${IMAGE_NAME}" | tr '[:upper:]' '[:lower:]')
+          echo "image=$IMAGE_LOWER" >> $GITHUB_OUTPUT
+
       - name: Compute Release Tag
         id: vars
         run: |
@@ -53,7 +60,7 @@ jobs:
           BUCKET_NAME="alma"
 
           # 2. Format as s3+https://
-          STORE_URL="s3+https://${R2_HOST}/${BUCKET_NAME}/chunks"
+          STORE_URL="oci+https://ghcr.io/ta-vroom/${{ steps.image_case.outputs.image }}"
           
           desync make \
             --store="${STORE_URL}" \
