@@ -74,6 +74,16 @@ jobs:
             sleep 5
           done
 
+          until desync make -n 4 --store="${STORE_URL}" ./alma_root_verity.caibx ./mkosi.output/alma.root-x86-64-verity.raw; do
+            COUNT=$((COUNT+1))
+            if [ $COUNT -ge $MAX_RETRIES ]; then
+              echo "Desync failed after $MAX_RETRIES attempts."
+              exit 1
+            fi
+            echo "Chunk upload dropped or timed out. Retrying ($COUNT/$MAX_RETRIES) in 5s..."
+            sleep 5
+          done
+
       - name: List directory
         run: |
           ls -la ./mkosi.output
