@@ -31,12 +31,8 @@ jobs:
           # Produces e.g. 2026.08.18-72 or v2026.08.18.72
           echo "RELEASE_TAG=$(date +'%Y%m%d').${{ github.run_number }}" >> $GITHUB_ENV
       
-      - name: Install Dependencies
-        run: |
-          sudo sed -i 's|azure\.archive\.ubuntu\.com|archive\.ubuntu\.com|g' /etc/apt/sources.list /etc/apt/sources.list.d/*.sources 2>/dev/null || true
-          sudo rm -rf /var/lib/apt/lists/*
-          sudo apt-get update
-          sudo apt-get install -y mkosi systemd-boot systemd-repart systemd-ukify python3-pefile binutils mtools dosfstools erofs-utils
+      - name: setup-mkosi
+        uses: systemd/mkosi@v27
 
       - name: Grab Desync
         run: | 
@@ -50,28 +46,21 @@ jobs:
         run: |
           sudo mkosi build
       
-      - name: Chunk Images with Desync
-        env:
-          AWS_ACCESS_KEY_ID: ${{ secrets.R2_UBUNTU_ACCESS_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.SECRET_KEY }}
-          AWS_DEFAULT_REGION: auto
-        run: |
-          # 1. Cloudflare R2 Endpoint Host
-          R2_HOST="${{ secrets.CLOUDFLARE_ACCOUNT_ID }}.r2.cloudflarestorage.com"
-          BUCKET_NAME="alma"
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
-          # 2. Format as s3+https://
+      - name: Chunk Images with Desync
+        run: |
           STORE_URL="oci+https://ghcr.io/${{ steps.image_case.outputs.image }}"
           
           desync make \
             --store="${STORE_URL}" \
             ./alma.caibx \
             ./mkosi.output/alma.root-x86-64.raw
-
-          desync make \
-            --store="${STORE_URL}" \
-            ./alma_root_verity.caibx \
-            ./mkosi.output/alma.root-x86-64-verity.raw
             
       - name: List directory
         run: |
