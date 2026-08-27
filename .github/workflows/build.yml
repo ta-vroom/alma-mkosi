@@ -12,7 +12,8 @@ on:
 jobs:
   build-and-chunk:
     permissions:
-        contents: write
+      contents: write
+      packages: write
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -60,7 +61,7 @@ jobs:
           BUCKET_NAME="alma"
 
           # 2. Format as s3+https://
-          STORE_URL="oci+https://ghcr.io/ta-vroom/${{ steps.image_case.outputs.image }}"
+          STORE_URL="oci+https://ghcr.io/${{ steps.image_case.outputs.image }}"
           
           desync make \
             --store="${STORE_URL}" \
@@ -75,51 +76,6 @@ jobs:
       - name: List directory
         run: |
           ls -la ./mkosi.output
-
-      - name: Stage and Upload to R2
-        env:
-          AWS_ACCESS_KEY_ID: ${{ secrets.R2_UBUNTU_ACCESS_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.SECRET_KEY }}
-          AWS_DEFAULT_REGION: auto
-        run: |
-          R2_ENDPOINT="https://${{ secrets.CLOUDFLARE_ACCOUNT_ID }}.r2.cloudflarestorage.com"
-          BUCKET="alma"
-          VER="${{ env.RELEASE_TAG }}"
-
-          # 1. Always upload the Desync index (.caibx)
-          mv ./alma.caibx "alma_${VER}.caibx"
-          mv ./alma_root_verity.caibx "alma_root_verity_${VER}.caibx"
-
-          sha256sum "alma_${VER}.caibx" > "alma_${VER}.caibx.sha256"
-          sha256sum "alma_root_verity_${VER}.caibx" > "alma_root_verity_${VER}.caibx.sha256"
-          
-          aws s3 cp "alma_${VER}.caibx" "s3://${BUCKET}/images/" --endpoint-url "$R2_ENDPOINT"
-          aws s3 cp "alma_${VER}.caibx.sha256" "s3://${BUCKET}/images/" --endpoint-url "$R2_ENDPOINT"
-          aws s3 cp "alma_root_verity_${VER}.caibx" "s3://${BUCKET}/images/" --endpoint-url "$R2_ENDPOINT"
-          aws s3 cp "alma_root_verity_${VER}.caibx.sha256" "s3://${BUCKET}/images/" --endpoint-url "$R2_ENDPOINT"
-
-          # 2. Check and upload UKI/EFI if present
-          if compgen -G "mkosi.output/*.efi" > /dev/null; then
-            cp mkosi.output/*.efi "alma_${VER}.efi"
-            sha256sum "alma_${VER}.efi" > "alma_${VER}.efi.sha256"
-            
-            aws s3 cp "alma_${VER}.efi" "s3://${BUCKET}/efi/" --endpoint-url "$R2_ENDPOINT"
-            aws s3 cp "alma_${VER}.efi.sha256" "s3://${BUCKET}/efi/" --endpoint-url "$R2_ENDPOINT"
-          fi
-
-          # 3. Check if RAW image exists: upload if found, skip if not
-          RAW_FILE="mkosi.output/alma.raw"
-          if [ -f "$RAW_FILE" ]; then
-            echo "Found raw image at ${RAW_FILE}. Preparing upload..."
-            
-            cp "$RAW_FILE" "alma_${VER}.raw"
-            sha256sum "alma_${VER}.raw" > "alma_${VER}.raw.sha256"
-
-            aws s3 cp "alma_${VER}.raw" "s3://${BUCKET}/images/" --endpoint-url "$R2_ENDPOINT"
-            aws s3 cp "alma_${VER}.raw.sha256" "s3://${BUCKET}/images/" --endpoint-url "$R2_ENDPOINT"
-          else
-            echo "No raw image found at ${RAW_FILE}. Skipping raw upload."
-          fi
 
       - name: Publish GitHub Release Artifacts
         uses: softprops/action-gh-release@v2
