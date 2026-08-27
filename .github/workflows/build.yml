@@ -61,10 +61,8 @@ jobs:
         run: |
           STORE_URL="oci+https://ghcr.io/${{ steps.image_case.outputs.image }}"
           
-          desync make \
-            --store="${STORE_URL}" \
-            ./alma.caibx \
-            ./mkosi.output/alma.root-x86-64.raw
+          desync make --store=local-store ./alma.caibx ./mkosi.output/alma.root-x86-64.raw
+          desync copy -n 2 local-store "${STORE_URL}"
             
       - name: List directory
         run: |
