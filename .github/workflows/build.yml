@@ -33,6 +33,8 @@ jobs:
       
       - name: setup-mkosi
         uses: systemd/mkosi@v27
+        with: 
+          apk: "true"
 
       - name: Grab Desync
         run: | 
