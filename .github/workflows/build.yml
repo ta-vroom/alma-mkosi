@@ -92,17 +92,13 @@ jobs:
       - name: Rename release files
         run: |
           VER="${{ env.RELEASE_TAG }}"
-
-          # 1. Always upload the Desync index (.caibx)
-          mv ./alma.caibx "alma_${VER}.caibx"
-          mv ./alma_root_verity.caibx "alma_root_verity_${VER}.caibx"
-
-          sha256sum "alma_${VER}.caibx" > "alma_${VER}.caibx.sha256"
-          sha256sum "alma_root_verity_${VER}.caibx" > "alma_root_verity_${VER}.caibx.sha256"
-          
+         
           cp mkosi.output/*.efi "alma_${VER}.efi"
           cp mkosi.output/alma.raw "alma_root-x86-64_${VER}.raw"
           cp mkosi.output/alma.root-x86-64-verity.raw "alma.root-x86-64-verity_${VER}.raw"
+
+          sha256sum "alma_root-x86-64_${VER}.raw" > "alma_root-x86-64_${VER}.raw.sha256"
+          sha256sum "alma.root-x86-64-verity_${VER}.raw" > "alma.root-x86-64-verity_${VER}.raw.sha256"
           sha256sum "alma_${VER}.efi" > "alma_${VER}.efi.sha256"
 
       - name: Publish GitHub Release Artifacts
@@ -112,11 +108,9 @@ jobs:
           name: "Release ${{ env.RELEASE_TAG }}"
           prerelease: true
           files: |
-            ./alma_${{ env.RELEASE_TAG }}.caibx
-            ./alma_${{ env.RELEASE_TAG }}.caibx.sha256
-            ./alma_root_verity_${{ env.RELEASE_TAG }}.caibx
-            ./alma_root_verity_${{ env.RELEASE_TAG }}.caibx.sha256
             ./alma_${{ env.RELEASE_TAG }}.efi
             ./alma_${{ env.RELEASE_TAG }}.efi.sha256
             ./alma_root-x86-64_${{ env.RELEASE_TAG }}.raw
+            ./alma_root-x86-64_${{ env.RELEASE_TAG }}.raw.sha256
             ./alma.root-x86-64-verity_${{ env.RELEASE_TAG }}.raw
+            ./alma.root-x86-64-verity_${{ env.RELEASE_TAG }}.raw.sha256
