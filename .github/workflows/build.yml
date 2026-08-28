@@ -56,33 +56,34 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Chunk Images with Desync (with Retries)
-        run: |
-          STORE_URL="oci+https://ghcr.io/${{ steps.image_case.outputs.image }}"
+      # This works fine, but there's no easy/official way to do delta updates yet
+      # This is by far the cheapest way to host delta updates that I can find, but uploading to the ghcr is finicky, hence the loop.
+      # - name: Chunk Images with Desync (with Retries)
+      #   run: |
+      #     STORE_URL="oci+https://ghcr.io/${{ steps.image_case.outputs.image }}"
           
-          MAX_RETRIES=5
-          COUNT=0
+      #     MAX_RETRIES=5
+      #     COUNT=0
           
-          until desync make -n 4 --store="${STORE_URL}" ./alma.caibx ./mkosi.output/alma.root-x86-64.raw; do
-            COUNT=$((COUNT+1))
-            if [ $COUNT -ge $MAX_RETRIES ]; then
-              echo "Desync failed after $MAX_RETRIES attempts."
-              exit 1
-            fi
-            echo "Chunk upload dropped or timed out. Retrying ($COUNT/$MAX_RETRIES) in 5s..."
-            sleep 5
-          done
+      #     until desync make -n 4 --store="${STORE_URL}" ./alma.caibx ./mkosi.output/alma.root-x86-64.raw; do
+      #       COUNT=$((COUNT+1))
+      #       if [ $COUNT -ge $MAX_RETRIES ]; then
+      #         echo "Desync failed after $MAX_RETRIES attempts."
+      #         exit 1
+      #       fi
+      #       echo "Chunk upload dropped or timed out. Retrying ($COUNT/$MAX_RETRIES) in 5s..."
+      #       sleep 5
+      #     done
 
-          until desync make -n 4 --store="${STORE_URL}" ./alma_root_verity.caibx ./mkosi.output/alma.root-x86-64-verity.raw; do
-            COUNT=$((COUNT+1))
-            if [ $COUNT -ge $MAX_RETRIES ]; then
-              echo "Desync failed after $MAX_RETRIES attempts."
-              exit 1
-            fi
-            echo "Chunk upload dropped or timed out. Retrying ($COUNT/$MAX_RETRIES) in 5s..."
-            sleep 5
-          done
+      #     until desync make -n 4 --store="${STORE_URL}" ./alma_root_verity.caibx ./mkosi.output/alma.root-x86-64-verity.raw; do
+      #       COUNT=$((COUNT+1))
+      #       if [ $COUNT -ge $MAX_RETRIES ]; then
+      #         echo "Desync failed after $MAX_RETRIES attempts."
+      #         exit 1
+      #       fi
+      #       echo "Chunk upload dropped or timed out. Retrying ($COUNT/$MAX_RETRIES) in 5s..."
+      #       sleep 5
+      #     done
 
       - name: List directory
         run: |
@@ -100,7 +101,8 @@ jobs:
           sha256sum "alma_root_verity_${VER}.caibx" > "alma_root_verity_${VER}.caibx.sha256"
           
           cp mkosi.output/*.efi "alma_${VER}.efi"
-
+          cp mkosi.output/alma.raw "alma_root-x86-64_${VER}.raw"
+          cp mkosi.output/alma.root-x86-64-verity.raw "alma.root-x86-64-verity_${VER}.raw"
           sha256sum "alma_${VER}.efi" > "alma_${VER}.efi.sha256"
 
       - name: Publish GitHub Release Artifacts
@@ -108,7 +110,7 @@ jobs:
         with:
           tag_name: ${{ env.RELEASE_TAG }}
           name: "Release ${{ env.RELEASE_TAG }}"
-          prerelease: false
+          prerelease: true
           files: |
             ./alma_${{ env.RELEASE_TAG }}.caibx
             ./alma_${{ env.RELEASE_TAG }}.caibx.sha256
@@ -116,3 +118,5 @@ jobs:
             ./alma_root_verity_${{ env.RELEASE_TAG }}.caibx.sha256
             ./alma_${{ env.RELEASE_TAG }}.efi
             ./alma_${{ env.RELEASE_TAG }}.efi.sha256
+            ./alma_root-x86-64_${{ env.RELEASE_TAG }}.raw
+            ./alma.root-x86-64-verity_${{ env.RELEASE_TAG }}.raw
