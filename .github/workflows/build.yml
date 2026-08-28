@@ -94,8 +94,12 @@ jobs:
           VER="${{ env.RELEASE_TAG }}"
          
           cp mkosi.output/*.efi "alma_${VER}.efi"
-          cp mkosi.output/alma.raw "alma_root-x86-64_${VER}.raw"
-          cp mkosi.output/alma.root-x86-64-verity.raw "alma.root-x86-64-verity_${VER}.raw"
+          cp mkosi.output/alma.raw "alma_image-x86-64_${VER}.raw"
+          cp mkosi.output/alma.root-x86-64.raw.raw "alma_root-x86-64_${VER}.raw"
+
+          cp mkosi.output/alma.root-x86-64-verity.raw "alma_root-x86-64-verity_${VER}.raw"
+
+          sha256sum "alma.root-x86-64_${VER}.raw" > "alma_image-x86-64_${VER}.raw.sha256"
 
           sha256sum "alma_root-x86-64_${VER}.raw" > "alma_root-x86-64_${VER}.raw.sha256"
           sha256sum "alma.root-x86-64-verity_${VER}.raw" > "alma.root-x86-64-verity_${VER}.raw.sha256"
@@ -110,6 +114,8 @@ jobs:
           files: |
             ./alma_${{ env.RELEASE_TAG }}.efi
             ./alma_${{ env.RELEASE_TAG }}.efi.sha256
+            ./alma_image-x86-64_${{ env.RELEASE_TAG }}.raw
+            ./alma_image-x86-64_${{ env.RELEASE_TAG }}.raw.sha256
             ./alma_root-x86-64_${{ env.RELEASE_TAG }}.raw
             ./alma_root-x86-64_${{ env.RELEASE_TAG }}.raw.sha256
             ./alma.root-x86-64-verity_${{ env.RELEASE_TAG }}.raw
