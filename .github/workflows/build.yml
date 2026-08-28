@@ -102,7 +102,7 @@ jobs:
           sha256sum "alma.root-x86-64_${VER}.raw" > "alma_image-x86-64_${VER}.raw.sha256"
 
           sha256sum "alma_root-x86-64_${VER}.raw" > "alma_root-x86-64_${VER}.raw.sha256"
-          sha256sum "alma.root-x86-64-verity_${VER}.raw" > "alma.root-x86-64-verity_${VER}.raw.sha256"
+          sha256sum "alma_root-x86-64-verity_${VER}.raw" > "alma.root-x86-64-verity_${VER}.raw.sha256"
           sha256sum "alma_${VER}.efi" > "alma_${VER}.efi.sha256"
 
       - name: Publish GitHub Release Artifacts
