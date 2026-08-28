@@ -118,5 +118,5 @@ jobs:
             ./alma_image-x86-64_${{ env.RELEASE_TAG }}.raw.sha256
             ./alma_root-x86-64_${{ env.RELEASE_TAG }}.raw
             ./alma_root-x86-64_${{ env.RELEASE_TAG }}.raw.sha256
-            ./alma.root-x86-64-verity_${{ env.RELEASE_TAG }}.raw
-            ./alma.root-x86-64-verity_${{ env.RELEASE_TAG }}.raw.sha256
+            ./alma_root-x86-64-verity_${{ env.RELEASE_TAG }}.raw
+            ./alma_root-x86-64-verity_${{ env.RELEASE_TAG }}.raw.sha256
