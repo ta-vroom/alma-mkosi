@@ -113,7 +113,7 @@ jobs:
       - name: Publish Full Images as Pre-Releases
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ env.RELEASE_TAG }}
+          tag_name: ${{ env.RELEASE_TAG }}-images
           name: "Image v${{ github.run_number }}"
           prerelease: true
           files: |
