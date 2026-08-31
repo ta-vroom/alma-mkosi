@@ -1,6 +1,6 @@
 [Source]
 Type=url-file
-Path=https://github.com/ta-vroom/ubuntu-mkosi/releases/download/@v/
+Path=https://github.com/ta-vroom/ubuntu-mkosi/releases/latest/download/
 MatchPattern=alma_root-x86-64_@v.raw
 
 [Target]
