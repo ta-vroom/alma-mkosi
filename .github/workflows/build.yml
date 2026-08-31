@@ -96,29 +96,16 @@ jobs:
           cp mkosi.output/*.efi "alma_${VER}.efi"
           cp mkosi.output/alma.raw "alma_image-x86-64_${VER}.raw"
           cp mkosi.output/alma.root-x86-64.raw "alma_root-x86-64_${VER}.raw"
-
           cp mkosi.output/alma.root-x86-64-verity.raw "alma_root-x86-64-verity_${VER}.raw"
 
-          sha256sum "alma_root-x86-64_${VER}.raw" > "alma_image-x86-64_${VER}.raw.sha256"
+          sha256sum "alma_${VER}.efi" "alma_image-x86-64_${VER}.raw" "alma_root-x86-64_${VER}.raw" "alma_root-x86-64-verity_${VER}.raw" > SHA256SUMS
 
-          sha256sum "alma_root-x86-64_${VER}.raw" > "alma_root-x86-64_${VER}.raw.sha256"
-          sha256sum "alma_root-x86-64-verity_${VER}.raw" > "alma_root-x86-64-verity_${VER}.raw.sha256"
-          sha256sum "alma_${VER}.efi" > "alma_${VER}.efi.sha256"
+
 
       - name: Clean-up Releases
         run: | 
           # Delete all pre-releases
           gh release list -L 500 --json tagName,isPrerelease --jq '[.[] | select(.isPrerelease)][0:][].tagName' | xargs -r -I {} gh release delete {} --cleanup-tag -y
-
-      - name: Publish Full Images as Pre-Releases
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ env.RELEASE_TAG }}-images
-          name: "Image v${{ github.run_number }}"
-          prerelease: true
-          files: |
-            ./alma_image-x86-64_${{ env.RELEASE_TAG }}.raw
-            ./alma_image-x86-64_${{ env.RELEASE_TAG }}.raw.sha256
 
       - name: Publish GitHub Release Artifacts
         uses: softprops/action-gh-release@v2
@@ -128,8 +115,7 @@ jobs:
           prerelease: false
           files: |
             ./alma_${{ env.RELEASE_TAG }}.efi
-            ./alma_${{ env.RELEASE_TAG }}.efi.sha256
             ./alma_root-x86-64_${{ env.RELEASE_TAG }}.raw
-            ./alma_root-x86-64_${{ env.RELEASE_TAG }}.raw.sha256
             ./alma_root-x86-64-verity_${{ env.RELEASE_TAG }}.raw
-            ./alma_root-x86-64-verity_${{ env.RELEASE_TAG }}.raw.sha256
+            ./alma_image-x86-64_${{ env.RELEASE_TAG }}.raw
+            SHA256SUMS
