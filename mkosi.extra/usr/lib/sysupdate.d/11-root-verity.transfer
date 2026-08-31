@@ -6,9 +6,8 @@ MatchPattern=alma_root-x86-64-verity_@v.raw
 [Target]
 Type=partition
 Path=auto
-MatchPartitionType=root-verity:root-verity-secondary
-MatchPartitionLabel=alma_root_verity_@v
-MatchPartitionUUID=
+MatchPartitionType=root-verity-x86-64:root-secondary-verity-x86-64
+MatchPattern=alma_root_verity_@v
 InstancesMax=2
 ReadOnly=yes
 Mode=0444
