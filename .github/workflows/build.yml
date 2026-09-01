@@ -100,8 +100,6 @@ jobs:
 
           sha256sum "alma_${VER}.efi" "alma_image-x86-64_${VER}.raw" "alma_root-x86-64_${VER}.raw" "alma_root-x86-64-verity_${VER}.raw" > SHA256SUMS
 
-
-
       - name: Clean-up Releases
         run: | 
           # Delete all pre-releases
