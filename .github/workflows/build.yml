@@ -37,15 +37,7 @@ jobs:
           sudo rm -rf /var/lib/apt/lists/*
           sudo apt-get update
           sudo apt-get install -y mkosi systemd-boot systemd-repart systemd-ukify python3-pefile binutils mtools dosfstools erofs-utils
-
-      - name: Grab Desync
-        run: | 
-          gh release download -R folbricht/desync -p "*_linux_amd64.tar.gz" -O - | tar -xzv
-          chmod +x desync
-          sudo cp desync /usr/local/bin/
-          mkdir -p mkosi.extra/usr/local/bin/
-          cp desync mkosi.extra/usr/local/bin/
-      
+     
       - name: Build OS Image
         run: |
           sudo mkosi build
@@ -56,34 +48,6 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      # This works fine, but there's no easy/official way to do delta updates yet
-      # This is by far the cheapest way to host delta updates that I can find, but uploading to the ghcr is finicky, hence the loop.
-      # - name: Chunk Images with Desync (with Retries)
-      #   run: |
-      #     STORE_URL="oci+https://ghcr.io/${{ steps.image_case.outputs.image }}"
-          
-      #     MAX_RETRIES=5
-      #     COUNT=0
-          
-      #     until desync make -n 4 --store="${STORE_URL}" ./alma.caibx ./mkosi.output/alma.root-x86-64.raw; do
-      #       COUNT=$((COUNT+1))
-      #       if [ $COUNT -ge $MAX_RETRIES ]; then
-      #         echo "Desync failed after $MAX_RETRIES attempts."
-      #         exit 1
-      #       fi
-      #       echo "Chunk upload dropped or timed out. Retrying ($COUNT/$MAX_RETRIES) in 5s..."
-      #       sleep 5
-      #     done
-
-      #     until desync make -n 4 --store="${STORE_URL}" ./alma_root_verity.caibx ./mkosi.output/alma.root-x86-64-verity.raw; do
-      #       COUNT=$((COUNT+1))
-      #       if [ $COUNT -ge $MAX_RETRIES ]; then
-      #         echo "Desync failed after $MAX_RETRIES attempts."
-      #         exit 1
-      #       fi
-      #       echo "Chunk upload dropped or timed out. Retrying ($COUNT/$MAX_RETRIES) in 5s..."
-      #       sleep 5
-      #     done
 
       - name: List directory
         run: |
