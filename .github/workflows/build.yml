@@ -50,15 +50,16 @@ jobs:
 
           sha256sum "alma_${VER}.efi" "alma_image-x86-64_${VER}.raw" "alma_root-x86-64_${VER}.raw" "alma_root-x86-64-verity_${VER}.raw" > SHA256SUMS
           
-      - name: Import GPG key
-        uses: crazy-max/ghaction-import-gpg@v6
-        with:
-          gpg_private_key: ${{ secrets.GPG_PRIVATE_KEY }}
-          passphrase: ${{ secrets.GPG_PASSPHRASE }} # optional if key has no passphrase
-
       - name: Sign SHA256SUMS
+        env:
+          GPG_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
+          GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
         run: |
-          gpg --batch --yes --detach-sign --armor --output SHA256SUMS.gpg SHA256SUMS
+          echo "$GPG_KEY" | gpg --batch --import
+
+          gpg --batch --yes --pinentry-mode loopback \
+              ${GPG_PASSPHRASE:+--passphrase "$GPG_PASSPHRASE"} \
+              --detach-sign --output SHA256SUMS.gpg SHA256SUMS
 
       - name: Clean-up Releases
         run: | 
