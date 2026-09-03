@@ -10,7 +10,7 @@ on:
   push:
 
 jobs:
-  build-and-chunk:
+  Create Image:
     permissions:
       contents: write
       packages: write
@@ -53,6 +53,12 @@ jobs:
         run: |
           ls -la ./mkosi.output
 
+      - name: Import GPG key
+        uses: crazy-max/ghaction-import-gpg@v6
+        with:
+          gpg_private_key: ${{ secrets.GPG_PRIVATE_KEY }}
+          passphrase: ${{ secrets.GPG_PASSPHRASE }} # optional if key has no passphrase
+
       - name: Rename release files
         run: |
           VER="${{ env.RELEASE_TAG }}"
@@ -63,6 +69,8 @@ jobs:
           cp mkosi.output/alma.root-x86-64-verity.raw "alma_root-x86-64-verity_${VER}.raw"
 
           sha256sum "alma_${VER}.efi" "alma_image-x86-64_${VER}.raw" "alma_root-x86-64_${VER}.raw" "alma_root-x86-64-verity_${VER}.raw" > SHA256SUMS
+          
+          gpg --batch --yes --detach-sign --armor --output SHA256SUMS.gpg          
 
       - name: Clean-up Releases
         run: | 
