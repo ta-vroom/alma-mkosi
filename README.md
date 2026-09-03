@@ -1,4 +1,4 @@
-# ubuntu-mkosi -- Build Ubuntu Images with mkosi
+# alma-mkosi -- Adventures with creating immutable A/B systems with sysupdate and mkosi
 
 Practical examples and configurations for building Ubuntu images using [mkosi](https://github.com/systemd/mkosi), a tool for generating bespoke OS images. mkosi is a fancy wrapper around `apt` (and `dnf`, `pacman`, `zypper`) that generates customized disk images with a number of bells and whistles.
 
