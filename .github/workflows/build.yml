@@ -18,13 +18,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Lowercase Registry and Image
-        id: image_case
-        run: |
-          # Extract just the lowercased repository name for Buildah and Push
-          IMAGE_LOWER=$(echo "${IMAGE_NAME}" | tr '[:upper:]' '[:lower:]')
-          echo "image=$IMAGE_LOWER" >> $GITHUB_OUTPUT
-
       - name: Compute Release Tag
         id: vars
         run: |
@@ -41,23 +34,10 @@ jobs:
       - name: Build OS Image
         run: |
           sudo mkosi build
-      
-      - name: Log in to GHCR
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: List directory
         run: |
           ls -la ./mkosi.output
-
-      - name: Import GPG key
-        uses: crazy-max/ghaction-import-gpg@v6
-        with:
-          gpg_private_key: ${{ secrets.GPG_PRIVATE_KEY }}
-          passphrase: ${{ secrets.GPG_PASSPHRASE }} # optional if key has no passphrase
 
       - name: Rename release files
         run: |
@@ -70,7 +50,16 @@ jobs:
 
           sha256sum "alma_${VER}.efi" "alma_image-x86-64_${VER}.raw" "alma_root-x86-64_${VER}.raw" "alma_root-x86-64-verity_${VER}.raw" > SHA256SUMS
           
-          gpg --batch --yes --detach-sign --armor --output SHA256SUMS.gpg          
+      - name: Sign SHA256SUMS
+        env:
+        GPG_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
+        GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+        run: |
+          gpg --batch --import
+
+          gpg --batch --yes --pinentry-mode loopback \
+              ${GPG_PASSPHRASE:+--passphrase "$GPG_PASSPHRASE"} \
+              --detach-sign --output SHA256SUMS.gpg SHA256SUMS
 
       - name: Clean-up Releases
         run: | 
