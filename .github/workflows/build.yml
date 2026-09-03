@@ -89,3 +89,4 @@ jobs:
             ./alma_root-x86-64-verity_${{ env.RELEASE_TAG }}.raw
             ./alma_image-x86-64_${{ env.RELEASE_TAG }}.raw
             SHA256SUMS
+            SHA256SUMS.gpg
