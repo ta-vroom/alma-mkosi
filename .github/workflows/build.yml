@@ -10,7 +10,7 @@ on:
   push:
 
 jobs:
-  Create Image:
+  Create_Image:
     permissions:
       contents: write
       packages: write
