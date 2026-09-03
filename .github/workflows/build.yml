@@ -58,8 +58,8 @@ jobs:
           echo "$GPG_KEY" | gpg --batch --import
 
           gpg --batch --yes --pinentry-mode loopback \
-              ${GPG_PASSPHRASE:+--passphrase "$GPG_PASSPHRASE"} \
-              --detach-sign --output SHA256SUMS.gpg SHA256SUMS
+              --passphrase "$GPG_PASSPHRASE" \
+              --detach-sign --armor --output SHA256SUMS.gpg SHA256SUMS
 
       - name: Clean-up Releases
         run: | 
