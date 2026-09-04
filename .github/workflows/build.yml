@@ -33,11 +33,8 @@ jobs:
      
       - name: Build OS Image
         run: |
+          echo "${{ env.RELEASE_TAG }}" >> mkosi.version
           sudo mkosi build
-
-      - name: List directory
-        run: |
-          ls -la ./mkosi.output
 
       - name: Rename release files
         run: |
