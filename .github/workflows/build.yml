@@ -50,7 +50,10 @@ jobs:
           echo "$GPG_KEY" | gpg --batch --import
 
           VER="${{ env.RELEASE_TAG }}"
-          sha256sum "alma_${VER}.efi" "alma_${VER}.raw" "alma_${VER}.root-x86-64.raw" "alma_${VER}.root-x86-64-verity.raw" > SHA256SUMS
+
+          mv "alma_${VER}.efi" "alma_${VER}.raw" "alma_${VER}.root-x86-64.raw" "alma_${VER}.root-x86-64-verity.raw" .
+
+          sha256sum "alma_*" > SHA256SUMS
 
           gpg --batch --yes --pinentry-mode loopback \
               --passphrase "$GPG_PASSPHRASE" \
@@ -68,9 +71,7 @@ jobs:
           name: "${{ env.RELEASE_TAG }}"
           prerelease: false
           files: |
-            ./alma_${{ env.RELEASE_TAG }}.efi
-            ./alma_${{ env.RELEASE_TAG }}.raw
-            ./alma_${{ env.RELEASE_TAG }}.root-x86-64.raw
-            ./alma_${{ env.RELEASE_TAG }}.root-x86-64-verity.raw
+            ./alma_*.efi
+            ./alma_*.raw
             SHA256SUMS
             SHA256SUMS.gpg
