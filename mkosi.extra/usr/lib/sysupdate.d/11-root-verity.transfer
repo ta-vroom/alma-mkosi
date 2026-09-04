@@ -1,7 +1,7 @@
 [Source]
 Type=url-file
 Path=https://github.com/ta-vroom/alma-mkosi/releases/latest/download/
-MatchPattern=alma_root-x86-64-verity_@v.raw
+MatchPattern=alma_@v.root-x86-64-verity.raw
 
 [Target]
 Type=partition
