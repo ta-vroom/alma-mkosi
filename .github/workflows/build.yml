@@ -48,8 +48,11 @@ jobs:
           GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
         run: |
           echo "$GPG_KEY" | gpg --batch --import
+          
+          sudo chown -R runner:runner ./mkosi.output
 
           VER="${{ env.RELEASE_TAG }}"
+          
           mv ./mkosi.output/alma_${VER}.efi .
           mv ./mkosi.output/alma_${VER}.raw .
           mv ./mkosi.output/alma_${VER}.root-x86-64.raw .
