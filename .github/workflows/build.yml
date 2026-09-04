@@ -36,14 +36,18 @@ jobs:
           echo "${{ env.RELEASE_TAG }}" >> mkosi.version
           sudo mkosi build
 
+      - name: List directory
+        run: |
+          ls -la ./mkosi.output
+
       - name: Rename release files
         run: |
           VER="${{ env.RELEASE_TAG }}"
          
           cp mkosi.output/*.efi "alma_${VER}.efi"
-          cp mkosi.output/alma.raw "alma_image-x86-64_${VER}.raw"
-          cp mkosi.output/alma.root-x86-64.raw "alma_root-x86-64_${VER}.raw"
-          cp mkosi.output/alma.root-x86-64-verity.raw "alma_root-x86-64-verity_${VER}.raw"
+          cp mkosi.output/alma_${VER}.raw "alma_image-x86-64_${VER}.raw"
+          cp mkosi.output/alma.root-x86-64_${VER}.raw "alma_root-x86-64_${VER}.raw"
+          cp mkosi.output/alma.root-x86-64-verity_${VER}.raw "alma_root-x86-64-verity_${VER}.raw"
 
           sha256sum "alma_${VER}.efi" "alma_image-x86-64_${VER}.raw" "alma_root-x86-64_${VER}.raw" "alma_root-x86-64-verity_${VER}.raw" > SHA256SUMS
           
