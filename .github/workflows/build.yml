@@ -32,31 +32,25 @@ jobs:
           sudo apt-get install -y mkosi systemd-boot systemd-repart systemd-ukify python3-pefile binutils mtools dosfstools erofs-utils
      
       - name: Build OS Image
+        env:
+          SYSTEMD_REPART_MKFS_OPTIONS_EROFS: "-z zstd"
         run: |
           echo "${{ env.RELEASE_TAG }}" >> mkosi.version
-          sudo mkosi build
+          sudo -E mkosi build
 
       - name: List directory
         run: |
           ls -la ./mkosi.output
-
-      - name: Rename release files
-        run: |
-          VER="${{ env.RELEASE_TAG }}"
-         
-          cp mkosi.output/*.efi "alma_${VER}.efi"
-          cp mkosi.output/alma_${VER}.raw "alma_image-x86-64_${VER}.raw"
-          cp mkosi.output/alma.root-x86-64_${VER}.raw "alma_root-x86-64_${VER}.raw"
-          cp mkosi.output/alma.root-x86-64-verity_${VER}.raw "alma_root-x86-64-verity_${VER}.raw"
-
-          sha256sum "alma_${VER}.efi" "alma_image-x86-64_${VER}.raw" "alma_root-x86-64_${VER}.raw" "alma_root-x86-64-verity_${VER}.raw" > SHA256SUMS
           
-      - name: Sign SHA256SUMS
+      - name: Sign and generate SHA256SUMS
         env:
           GPG_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
           GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
         run: |
           echo "$GPG_KEY" | gpg --batch --import
+
+          VER="${{ env.RELEASE_TAG }}"
+          sha256sum "alma_${VER}.efi" "alma_${VER}.raw" "alma_${VER}.root-x86-64.raw" "alma_${VER}.root-x86-64-verity.raw" > SHA256SUMS
 
           gpg --batch --yes --pinentry-mode loopback \
               --passphrase "$GPG_PASSPHRASE" \
@@ -75,8 +69,8 @@ jobs:
           prerelease: false
           files: |
             ./alma_${{ env.RELEASE_TAG }}.efi
-            ./alma_root-x86-64_${{ env.RELEASE_TAG }}.raw
-            ./alma_root-x86-64-verity_${{ env.RELEASE_TAG }}.raw
-            ./alma_image-x86-64_${{ env.RELEASE_TAG }}.raw
+            ./alma_${{ env.RELEASE_TAG }}.raw
+            ./alma_${{ env.RELEASE_TAG }}.root-x86-64.raw
+            ./alma_${{ env.RELEASE_TAG }}.root-x86-64-verity.raw
             SHA256SUMS
             SHA256SUMS.gpg
