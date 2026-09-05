@@ -52,32 +52,28 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release download -R ta-vroom/alma-mkosi -p "alma_20260904.112.raw"
-          
-          # Dynamically attach loop device
           LOOP_DEV=$(sudo losetup -Pf --show alma_20260904.112.raw)
-          echo "LOOP_DEV=${LOOP_DEV}" >> "$GITHUB_ENV"
-          
-          mkdir -p ./mnt
-          sudo mount "${LOOP_DEV}p2" ./mnt
 
-          # Disable immediate exit to catch return code 100 (updates available)
+          mkdir -p ./mnt
+          sudo mount -o ro "${LOOP_DEV}p2" ./mnt
+
+          # Only get the first two numbers
+          VERSION=$(sed -n 's/^VERSION_ID="\{0,1\}\([0-9]\+\)\..*/\1/p' ./mnt/etc/os-release)
+
           set +e
-          sudo systemd-nspawn --quiet \
-            --volatile=yes \
-            -D "$PWD/mnt" \
-            dnf check-update --quiet
+          podman run --rm --privileged \
+            -v "$PWD/mnt:/installroot:ro" \
+            almalinux:$VERSION \
+            dnf check-update --installroot=/installroot --quiet
           STATUS=$?
           set -e
 
           if [ $STATUS -eq 100 ]; then
-            echo "updates_available=true" >> "$GITHUB_OUTPUT"
-            echo "Updates found!"
+            echo "Updates available!"
           elif [ $STATUS -eq 0 ]; then
-            echo "updates_available=false" >> "$GITHUB_OUTPUT"
-            echo "Image is up to date."
+            echo "All packages up to date."
           else
-            echo "DNF check-update failed with status $STATUS"
-            exit $STATUS
+            echo "Check failed with exit code $STATUS"
           fi
 
       - name: Cleanup
