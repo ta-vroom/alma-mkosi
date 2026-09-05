@@ -13,6 +13,9 @@ jobs:
   cache-test:
     runs-on: ubuntu-latest
     steps:
+      - name: Install Dependencies
+        run: |
+          sudo apt-get update && sudo apt-get install dnf -y
       - name: Grab Image
         run: |
           gh release download -R ta-vroom/alma-mkosi -p "alma_20260904.112.raw"
