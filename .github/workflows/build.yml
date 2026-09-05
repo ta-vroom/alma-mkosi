@@ -34,7 +34,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: /var/cache/apt/archives
-          key: ${{ runner.os }}-apt-${{ hashFiles('.github/workflows/<workflow-name>.yml') }}
+          key: ${{ runner.os }}-apt-${{ github.run_id }}
           restore-keys: |
             ${{ runner.os }}-apt-
       
@@ -58,6 +58,9 @@ jobs:
           
           sudo apt-get install -d -y "${PACKAGES[@]}"
           sudo apt-get install -y "${PACKAGES[@]}"
+
+          # Clean obsolete debs
+          sudo apt-get autoclean
      
       - name: Build OS Image
         run: |
