@@ -10,3 +10,5 @@ fi
 for fpr in $(gpg --list-keys --with-colons | awk -F: '$1 == "fpr" {print $10}'); do
     echo "${fpr}:6:" | gpg --import-ownertrust
 done
+
+ln -sf /dev/null /etc/systemd/system/systemd-machine-id-commit.service
