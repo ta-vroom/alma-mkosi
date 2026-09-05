@@ -25,6 +25,7 @@ jobs:
       - name: Builds per Diem
         uses: actions/cache@v4
         with:
+          path: build
           key: ${{ env.DATE }}-${{ github.run_id }}
           restore-keys: |
             ${{ env.DATE }}-
