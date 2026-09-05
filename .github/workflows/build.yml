@@ -48,15 +48,9 @@ jobs:
           sudo apt-get install -y mkosi systemd-boot systemd-repart systemd-ukify python3-pefile binutils mtools dosfstools erofs-utils
      
       - name: Build OS Image
-        env:
-          SYSTEMD_REPART_MKFS_OPTIONS_EROFS: "-z zstd"
         run: |
           printf "%s" "${{ env.RELEASE_TAG }}" > mkosi.version
-          sudo -E mkosi build --unified-kernel-image-format="alma_${{ env.RELEASE_TAG }}"
-
-      - name: List directory
-        run: |
-          ls -la ./mkosi.output
+          sudo SYSTEMD_REPART_MKFS_OPTIONS_EROFS="-z zstd" mkosi build mkosi build --unified-kernel-image-format="alma_${{ env.RELEASE_TAG }}"
           
       - name: Sign and generate SHA256SUMS
         env:
