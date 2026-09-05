@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Import your public key into root's keyring if needed
+if [ -f /usr/share/keyrings/sysupdate-release.gpg ]; then
+    gpg --import /usr/share/keyrings/sysupdate-release.gpg
+fi
+
+# Mark any imported key associated with your release identity as ultimately trusted
+for fpr in $(gpg --list-keys --with-colons | awk -F: '$1 == "fpr" {print $10}'); do
+    echo "${fpr}:6:" | gpg --import-ownertrust
+done
