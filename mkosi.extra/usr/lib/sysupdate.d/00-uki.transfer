@@ -6,6 +6,10 @@ MatchPattern=alma_@v.efi
 [Target]
 Type=regular-file
 Path=/efi/EFI/Linux
-MatchPattern=alma_@v+@l-@d.efi
+MatchPattern=alma_@v+@l-@d.efi alma_@v+@l.efi alma_@v.efi
 InstancesMax=2
 Mode=0755
+
+# SD-boot counting
+TriesLeft=3
+TriesDone=0
