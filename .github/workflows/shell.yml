@@ -13,6 +13,34 @@ jobs:
   cache-test:
     runs-on: ubuntu-latest
     steps:
+      # - name: Check for Upstream Errata
+      #   id: check_updates
+      #   env:
+      #     GH_TOKEN: ${{ github.token }}
+      #   run: |
+      #     RELEASE_DATE=$(gh release list -L 1 --json publishedAt -q '.[0].publishedAt')
+          
+      #     if [ -z "$RELEASE_DATE" ] || [ "$RELEASE_DATE" = "null" ]; then
+      #       echo "No existing releases found. Forcing build."
+      #       echo "needs_build=true" >> "$GITHUB_OUTPUT"
+      #       exit 0
+      #     fi
+
+      #     SINCE_EPOCH=$(date -d "$RELEASE_DATE" +%s)
+
+      #     LAST_ERRATA=$(curl -s https://errata.almalinux.org/10/errata.full.json \
+      #       | jq -r '.data[-1].issued_date')
+
+      #     echo "Last Release Epoch: $SINCE_EPOCH ($(date -d @"$SINCE_EPOCH" -u))"
+      #     echo "Last Errata Epoch:  $LAST_ERRATA ($(date -d @"$LAST_ERRATA" -u))"
+
+      #     if [ "$LAST_ERRATA" -gt "$SINCE_EPOCH" ]; then
+      #       echo "New errata detected since last image release!"
+      #       echo "needs_build=true" >> "$GITHUB_OUTPUT"
+      #     else
+      #       echo "Image is newer than the latest published errata. Nothing to do."
+      #       echo "needs_build=false" >> "$GITHUB_OUTPUT"
+      #     fi
       - name: Install Dependencies
         run: |
           sudo apt-get update
@@ -25,22 +53,19 @@ jobs:
         run: |
           gh release download -R ta-vroom/alma-mkosi -p "alma_20260904.112.raw"
           
-          # Dynamically capture loop device
+          # Dynamically attach loop device
           LOOP_DEV=$(sudo losetup -Pf --show alma_20260904.112.raw)
           echo "LOOP_DEV=${LOOP_DEV}" >> "$GITHUB_ENV"
           
           mkdir -p ./mnt
-          sudo mount -o ro "${LOOP_DEV}p2" ./mnt
+          sudo mount "${LOOP_DEV}p2" ./mnt
 
-          # Create a writable host cache dir so dnf doesn't write to read-only mount
-          mkdir -p /tmp/dnf-cache
-
-          # Disable immediate step failure to capture exit code 100
+          # Disable immediate exit to catch return code 100 (updates available)
           set +e
-          sudo dnf check-update \
-            --installroot="$PWD/mnt" \
-            --setopt=cachedir=/tmp/dnf-cache \
-            --quiet
+          sudo systemd-nspawn --quiet \
+            --volatile=yes \
+            -D "$PWD/mnt" \
+            dnf check-update --quiet
           STATUS=$?
           set -e
 
@@ -49,10 +74,20 @@ jobs:
             echo "Updates found!"
           elif [ $STATUS -eq 0 ]; then
             echo "updates_available=false" >> "$GITHUB_OUTPUT"
-            echo "System is completely up to date."
+            echo "Image is up to date."
           else
-            echo "DNF failed with exit status $STATUS"
+            echo "DNF check-update failed with status $STATUS"
             exit $STATUS
+          fi
+
+      - name: Cleanup
+        if: always()
+        run: |
+          if mountpoint -q ./mnt; then
+            sudo umount ./mnt
+          fi
+          if [ -n "$LOOP_DEV" ]; then
+            sudo losetup -d "$LOOP_DEV"
           fi
 
       - name: Cleanup
