@@ -18,4 +18,4 @@ jobs:
       - name: Grab Image
         run: |
           gh release download -R ta-vroom/alma-mkosi -p "alma_20260904.112.raw"
-          ls -la .
+          mkosi shell
