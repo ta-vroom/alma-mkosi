@@ -38,7 +38,7 @@ jobs:
           fi
           echo "$COUNT" > builds
           echo "Current count is: $(cat builds)"
-          echo "RELEASE_TAG=${DATE}.${COUNT}" >> $GITHUB_ENV
+          echo "RELEASE_TAG=${DATE}-${COUNT}" >> $GITHUB_ENV
       
       - name: Install Dependencies
         run: |
