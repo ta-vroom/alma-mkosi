@@ -15,18 +15,52 @@ jobs:
     steps:
       - name: Install Dependencies
         run: |
-          sudo apt-get update && sudo apt-get install dnf -y
-      - name: Grab Image
+          sudo apt-get update
+          sudo apt-get install -y dnf
+
+      - name: Inspect Image Updates
+        id: check_updates
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           gh release download -R ta-vroom/alma-mkosi -p "alma_20260904.112.raw"
-          sudo losetup -Pf alma_20260904.112.raw
+          
+          # Dynamically capture loop device
+          LOOP_DEV=$(sudo losetup -Pf --show alma_20260904.112.raw)
+          echo "LOOP_DEV=${LOOP_DEV}" >> "$GITHUB_ENV"
+          
           mkdir -p ./mnt
-          sudo mount -o ro /dev/loop0p2 ./mnt
-          dnf check-update --installroot=./mnt --quiet
-          UPDATE_AVAILABLE=$?
+          sudo mount -o ro "${LOOP_DEV}p2" ./mnt
 
-          echo "$UPDATE_AVAILABLE"
+          # Create a writable host cache dir so dnf doesn't write to read-only mount
+          mkdir -p /tmp/dnf-cache
+
+          # Disable immediate step failure to capture exit code 100
+          set +e
+          sudo dnf check-update \
+            --installroot="$PWD/mnt" \
+            --setopt=cachedir=/tmp/dnf-cache \
+            --quiet
+          STATUS=$?
+          set -e
+
+          if [ $STATUS -eq 100 ]; then
+            echo "updates_available=true" >> "$GITHUB_OUTPUT"
+            echo "Updates found!"
+          elif [ $STATUS -eq 0 ]; then
+            echo "updates_available=false" >> "$GITHUB_OUTPUT"
+            echo "System is completely up to date."
+          else
+            echo "DNF failed with exit status $STATUS"
+            exit $STATUS
+          fi
+
       - name: Cleanup
+        if: always()
         run: |
-          sudo umount ./mnt
-          sudo losetup -D
+          if mountpoint -q ./mnt; then
+            sudo umount ./mnt
+          fi
+          if [ -n "$LOOP_DEV" ]; then
+            sudo losetup -d "$LOOP_DEV"
+          fi
