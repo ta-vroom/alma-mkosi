@@ -10,18 +10,16 @@ on:
   #push:
 
 jobs:
-cache-test:
+  cache-test:
     runs-on: ubuntu-latest
     steps:
-      - name: Restore cache
-        id: cache
+      - name: Cache counter
         uses: actions/cache@v4
         with:
           path: nummer
-          key: nummer
+          key: nummer-${{ github.run_id }}
           restore-keys: |
-            nummer
-
+            nummer-
       - name: Increment count
         run: |
           COUNT=1
