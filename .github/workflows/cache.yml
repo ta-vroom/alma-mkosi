@@ -1,0 +1,32 @@
+name: CacheTest
+
+env:
+  CARGO_TERM_COLOR: always
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+on: 
+  workflow_dispatch:
+  #push:
+
+jobs:
+cache-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Restore cache
+        id: cache
+        uses: actions/cache@v4
+        with:
+          path: nummer
+          key: nummer
+          restore-keys: |
+            nummer
+
+      - name: Increment count
+        run: |
+          COUNT=1
+          if [ -f nummer ]; then
+            COUNT=$(( $(cat nummer) + 1 ))
+          fi
+          echo "$COUNT" > nummer
+          echo "Current count is: $(cat nummer)"
