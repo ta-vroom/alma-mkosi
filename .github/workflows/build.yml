@@ -25,11 +25,18 @@ jobs:
       - name: Builds per Diem
         uses: actions/cache@v4
         with:
-          path: builds
           key: ${{ env.DATE }}-${{ github.run_id }}
           restore-keys: |
             ${{ env.DATE }}-
 
+      - name: Cache APT Packages
+        uses: actions/cache@v4
+        with:
+          path: /var/cache/apt/archives
+          key: ${{ runner.os }}-apt-${{ hashFiles('.github/workflows/<workflow-name>.yml') }}
+          restore-keys: |
+            ${{ runner.os }}-apt-
+      
       - name: Increment count
         run: |
           COUNT=1
@@ -45,7 +52,11 @@ jobs:
           sudo sed -i 's|azure\.archive\.ubuntu\.com|archive\.ubuntu\.com|g' /etc/apt/sources.list /etc/apt/sources.list.d/*.sources 2>/dev/null || true
           sudo rm -rf /var/lib/apt/lists/*
           sudo apt-get update
-          sudo apt-get install -y mkosi systemd-boot systemd-repart systemd-ukify python3-pefile binutils mtools dosfstools erofs-utils
+          
+          PACKAGES=(mkosi systemd-boot systemd-repart systemd-ukify python3-pefile binutils mtools dosfstools erofs-utils)
+          
+          sudo apt-get install -d -y "${PACKAGES[@]}"
+          sudo apt-get install -y "${PACKAGES[@]}"
      
       - name: Build OS Image
         run: |
