@@ -15,6 +15,7 @@ jobs:
     steps:
       - name: Grab Image
         run: |
+          gh release download -R ta-vroom/alma-mkosi -p "alma_20260904.112.raw"
           sudo losetup -Pf alma_20260904.112.raw
           mkdir -p ./mnt
           sudo mount -o ro /dev/loop0p2 ./mnt
