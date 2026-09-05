@@ -19,8 +19,10 @@ jobs:
           sudo losetup -Pf alma_20260904.112.raw
           mkdir -p ./mnt
           sudo mount -o ro /dev/loop0p2 ./mnt
-          cat ./mnt/etc/os-release
-          # Cleanup
+          dnf check-update --installroot=./mnt --quiet
+          UPDATE_AVAILABLE=$?
+
+          echo "$UPDATE_AVAILABLE"
       - name: Cleanup
         run: |
           sudo umount ./mnt
