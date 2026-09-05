@@ -10,7 +10,7 @@ After=var.mount
 What=overlay
 Where=/etc
 Type=overlay
-Options=lowerdir=/etc,upperdir=/var/etc,workdir=/var/.etc-work,nofail
+Options=lowerdir=/etc,upperdir=/var/etc,workdir=/var/.etc-work,nofail,x-systemd.device-timeout=0
 
 [Install]
 WantedBy=local-fs.target
