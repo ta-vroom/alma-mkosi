@@ -18,11 +18,27 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Compute Release Tag
-        id: vars
+      - name: Set current date
+        id: date
+        run: echo "DATE=$(date +'%Y%m%d')" >> $GITHUB_ENV
+
+      - name: Builds per Diem
+        uses: actions/cache@v4
+        with:
+          path: builds
+          key: ${{ env.DATE }}-${{ github.run_id }}
+          restore-keys: |
+            ${{ env.DATE }}-
+
+      - name: Increment count
         run: |
-          # Produces e.g. 2026.08.18-72 or v2026.08.18.72
-          echo "RELEASE_TAG=$(date +'%Y%m%d').${{ github.run_number }}" >> $GITHUB_ENV
+          COUNT=1
+          if [ -f builds ]; then
+            COUNT=$(( $(cat builds) + 1 ))
+          fi
+          echo "$COUNT" > builds
+          echo "Current count is: $(cat builds)"
+          echo "RELEASE_TAG=${DATE}.${COUNT}" >> $GITHUB_ENV
       
       - name: Install Dependencies
         run: |
