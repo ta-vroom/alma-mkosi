@@ -1,0 +1,22 @@
+name: ShellTest
+
+env:
+  CARGO_TERM_COLOR: always
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+on: 
+  workflow_dispatch:
+  #push:
+
+jobs:
+  cache-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: setup-mkosi
+        uses: systemd/mkosi@v27
+      - name: Grab Image
+        run: |
+        run: | 
+          gh release download -R ta-vroom/alma-mkosi -p "alma_20260904.112.raw"
+          ls -la .
