@@ -25,7 +25,7 @@ jobs:
       - name: Builds per Diem
         uses: actions/cache@v4
         with:
-          path: build
+          path: ${{ env.DATE }}
           key: ${{ env.DATE }}-${{ github.run_id }}
           restore-keys: |
             ${{ env.DATE }}-
@@ -41,12 +41,12 @@ jobs:
       - name: Increment count
         run: |
           COUNT=1
-          if [ -f builds ]; then
-            COUNT=$(( $(cat builds) + 1 ))
+          if [ -f ${{ env.DATE }} ]; then
+            COUNT=$(( $(cat ${{ env.DATE }}) + 1 ))
           fi
-          echo "$COUNT" > builds
-          echo "Current count is: $(cat builds)"
-          echo "RELEASE_TAG=${DATE}-${COUNT}" >> $GITHUB_ENV
+          echo "$COUNT" > ${{ env.DATE }}
+          echo "Current count is: $(cat ${{ env.DATE }})"
+          echo "RELEASE_TAG=${DATE}-${{ github.run_id }}" >> $GITHUB_ENV
       
       - name: Install Dependencies
         run: |
