@@ -1,0 +1,15 @@
+[Unit]
+Description=Mount Persistent /var and /etc Overlay
+DefaultDependencies=no
+Requires=initrd-root-fs.target
+After=initrd-root-fs.target
+Before=initrd-fs.target initrd-switch-root.target
+ConditionPathExists=/sysroot/etc
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/lib/systemd/scripts/mount-etc-overlay.sh
+
+[Install]
+WantedBy=initrd-fs.target
