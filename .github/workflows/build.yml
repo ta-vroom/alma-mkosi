@@ -22,14 +22,6 @@ jobs:
         id: date
         run: echo "DATE=$(date +'%Y%m%d')" >> $GITHUB_ENV
 
-      - name: Builds per Diem
-        uses: actions/cache@v4
-        with:
-          path: ${{ env.DATE }}
-          key: ${{ env.DATE }}-${{ github.run_id }}
-          restore-keys: |
-            ${{ env.DATE }}-
-
       - name: Cache APT Packages
         uses: actions/cache@v4
         with:
@@ -38,15 +30,25 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-apt-
       
-      - name: Increment count
+      - name: Release Tag
         run: |
-          COUNT=1
-          if [ -f ${{ env.DATE }} ]; then
-            COUNT=$(( $(cat ${{ env.DATE }}) + 1 ))
+          COUNT=0
+
+          LAST_TAG=$(gh release list -L 1 --json tagName --jq '.[0].tagName // ""')
+
+          if [[ "$LAST_TAG" =~ ^${{ env.DATE }}\.([0-9]+)$ ]]; then
+            PREV_COUNT="${BASH_REMATCH[1]}"
+            COUNT=$(( PREV_COUNT + 1 ))
           fi
-          echo "$COUNT" > ${{ env.DATE }}
-          echo "Current count is: $(cat ${{ env.DATE }})"
-          echo "RELEASE_TAG=${DATE}-${{ github.run_id }}" >> $GITHUB_ENV
+
+          if [ COUNT > 0 ]; then 
+            RELEASE_TAG="${{ env.DATE }}"
+          else 
+            RELEASE_TAG="${{ env.DATE }}.${{COUNT}}"
+
+          echo "RELEASE_TAG=${RELEASE_TAG}" >> "$GITHUB_ENV"
+          echo "Generated tag: ${RELEASE_TAG}"
+          
       
       - name: Install Dependencies
         run: |
