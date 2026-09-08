@@ -10,7 +10,8 @@ on:
   #push:
 
 jobs:
-  CreateImage:
+  build_release:
+    name: Build Image
     permissions:
       contents: write
       packages: write
