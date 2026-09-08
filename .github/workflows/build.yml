@@ -75,7 +75,7 @@ jobs:
       - name: Build OS Image
         run: |
           printf "%s" "${{ env.RELEASE_TAG }}" > mkosi.version
-          sudo mkosi build mkosi build --unified-kernel-image-format="alma_${{ env.RELEASE_TAG }}"
+          sudo mkosi build mkosi build --unified-kernel-image-format="alma_${{ env.RELEASE_TAG }}" --debug
           
       - name: Sign and generate SHA256SUMS
         env:
