@@ -9,7 +9,7 @@ ConditionPathExists=/sysroot/etc
 [Service]
 Type=oneshot
 RemainAfterExit=yes
-ExecStart=/usr/lib/systemd/scripts/mount-etc-overlay.sh
+ExecStart=/usr/libexec/mount-etc-overlay.sh
 
 [Install]
 WantedBy=initrd-fs.target
