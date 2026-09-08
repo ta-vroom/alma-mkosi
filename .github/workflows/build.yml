@@ -31,6 +31,8 @@ jobs:
             ${{ runner.os }}-apt-
       
       - name: Release Tag
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           COUNT=0
 
@@ -46,7 +48,7 @@ jobs:
           else 
             RELEASE_TAG="${{ env.DATE }}"
           fi
-          
+
           echo "RELEASE_TAG=${RELEASE_TAG}" >> "$GITHUB_ENV"
           echo "Generated tag: ${RELEASE_TAG}"
           
@@ -68,7 +70,7 @@ jobs:
       - name: Build OS Image
         run: |
           printf "%s" "${{ env.RELEASE_TAG }}" > mkosi.version
-          sudo SYSTEMD_REPART_MKFS_OPTIONS_EROFS="-z zstd" mkosi build mkosi build --unified-kernel-image-format="alma_${{ env.RELEASE_TAG }}"
+          sudo mkosi build mkosi build --unified-kernel-image-format="alma_${{ env.RELEASE_TAG }}"
           
       - name: Sign and generate SHA256SUMS
         env:
