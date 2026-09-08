@@ -37,17 +37,21 @@ jobs:
         run: |
           DATE="${{ env.DATE }}"
 
-          LATEST_TAG=$(gh release list --limit 100 --json tagName --jq '.[].tagName' \
-            | sed -E "s/^${DATE}\.?//" \
+          LATEST_NUM=$(gh release list --limit 100 --exclude-drafts --json tagName --jq '.[].tagName' \
+            | tr -d '\r' \
+            | sed -nE "s/^${DATE}$/0/p; s/^${DATE}\.([0-9]+)$/\1/p" \
             | sort -n \
             | tail -n 1)
 
-          if [ -z "$LATEST_TAG" ]; then
+          # Ensure LATEST_NUM is strictly digits; otherwise treat as empty
+          if [[ ! "$LATEST_NUM" =~ ^[0-9]+$ ]]; then
+            LATEST_NUM=""
+          fi
+
+          if [ -z "$LATEST_NUM" ]; then
             RELEASE_TAG="${DATE}"
-          elif [ "$LATEST_TAG" = "" ]; then
-            RELEASE_TAG="${DATE}.1"
           else
-            RELEASE_TAG="${DATE}.$(( LATEST_TAG + 1 ))"
+            RELEASE_TAG="${DATE}.$(( 10#$LATEST_NUM + 1 ))"
           fi
 
           echo "RELEASE_TAG=${RELEASE_TAG}" >> "$GITHUB_ENV"
