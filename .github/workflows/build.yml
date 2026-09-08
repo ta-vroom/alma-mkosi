@@ -115,3 +115,7 @@ jobs:
             ./alma_*.raw
             SHA256SUMS
             SHA256SUMS.gpg
+
+      - name: Cache packages
+        run: |
+          sudo chown -R runner:runner /var/cache/apt/archives
