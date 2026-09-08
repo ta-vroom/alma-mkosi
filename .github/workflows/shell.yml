@@ -41,11 +41,6 @@ jobs:
       #       echo "Image is newer than the latest published errata. Nothing to do."
       #       echo "needs_build=false" >> "$GITHUB_OUTPUT"
       #     fi
-      - name: Install Dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y dnf
-
       - name: Inspect Image Updates
         id: check_updates
         env:
