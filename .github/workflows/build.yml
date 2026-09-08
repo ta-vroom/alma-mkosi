@@ -41,11 +41,12 @@ jobs:
             COUNT=$(( PREV_COUNT + 1 ))
           fi
 
-          if [ COUNT > 0 ]; then 
-            RELEASE_TAG="${{ env.DATE }}"
+          if [ "$COUNT" -gt 0 ]; then 
+            RELEASE_TAG="${{ env.DATE }}.${COUNT}"
           else 
-            RELEASE_TAG="${{ env.DATE }}.${{COUNT}}"
-
+            RELEASE_TAG="${{ env.DATE }}"
+          fi
+          
           echo "RELEASE_TAG=${RELEASE_TAG}" >> "$GITHUB_ENV"
           echo "Generated tag: ${RELEASE_TAG}"
           
