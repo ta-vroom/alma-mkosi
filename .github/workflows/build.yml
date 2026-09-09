@@ -66,7 +66,7 @@ jobs:
           sudo rm -rf /var/lib/apt/lists/*
           sudo apt-get update
           
-          PACKAGES=(mkosi systemd-boot systemd-repart systemd-ukify python3-pefile binutils mtools dosfstools erofs-utils)
+          PACKAGES=(systemd-boot systemd-repart systemd-ukify python3-pefile binutils mtools erofs-utils)
           
           sudo apt-get install -d -y "${PACKAGES[@]}"
           sudo apt-get install -y "${PACKAGES[@]}"
@@ -80,6 +80,7 @@ jobs:
           sudo mkosi build --unified-kernel-image-format="alma_${{ env.RELEASE_TAG }}" --debug
 
       - name: List files
+        if: always()
         run: |
           ls -la ./mkosi.output
           ls -la 
@@ -123,5 +124,6 @@ jobs:
             SHA256SUMS.gpg
 
       - name: Cache packages
+        if: always()
         run: |
           sudo chown -R runner:runner /var/cache/apt/archives
