@@ -76,7 +76,10 @@ jobs:
         run: |
           printf "%s" "${{ env.RELEASE_TAG }}" > mkosi.version
           sudo mkosi build mkosi build --unified-kernel-image-format="alma_${{ env.RELEASE_TAG }}" --debug
-          
+      - name: List files
+        run: |
+          ls -la ./mkosi.output
+          ls -la 
       - name: Sign and generate SHA256SUMS
         env:
           GPG_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
