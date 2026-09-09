@@ -60,19 +60,19 @@ jobs:
       - name: setup-mkosi
         uses: systemd/mkosi@v27
 
-      # - name: Install Dependencies
-      #   run: |
-      #     sudo sed -i 's|azure\.archive\.ubuntu\.com|archive\.ubuntu\.com|g' /etc/apt/sources.list /etc/apt/sources.list.d/*.sources 2>/dev/null || true
-      #     sudo rm -rf /var/lib/apt/lists/*
-      #     sudo apt-get update
+      - name: Install Dependencies
+        run: |
+          sudo sed -i 's|azure\.archive\.ubuntu\.com|archive\.ubuntu\.com|g' /etc/apt/sources.list /etc/apt/sources.list.d/*.sources 2>/dev/null || true
+          sudo rm -rf /var/lib/apt/lists/*
+          sudo apt-get update
           
-      #     PACKAGES=(mkosi systemd-boot systemd-repart systemd-ukify python3-pefile binutils mtools dosfstools erofs-utils)
+          PACKAGES=(mkosi systemd-boot systemd-repart systemd-ukify python3-pefile binutils mtools dosfstools erofs-utils)
           
-      #     sudo apt-get install -d -y "${PACKAGES[@]}"
-      #     sudo apt-get install -y "${PACKAGES[@]}"
+          sudo apt-get install -d -y "${PACKAGES[@]}"
+          sudo apt-get install -y "${PACKAGES[@]}"
 
-      #     # Clean obsolete debs
-      #     sudo apt-get autoclean
+          # Clean obsolete debs
+          sudo apt-get autoclean
 
       - name: Build OS Image
         run: |
