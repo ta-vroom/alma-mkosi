@@ -74,10 +74,6 @@ jobs:
       #     # Clean obsolete debs
       #     sudo apt-get autoclean
 
-      - name: Build initrd
-        run: |
-          sudo mkosi --image initrd build
-
       - name: Build OS Image
         run: |
           printf "%s" "${{ env.RELEASE_TAG }}" > mkosi.version
