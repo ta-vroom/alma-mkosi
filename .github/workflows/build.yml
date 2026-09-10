@@ -23,7 +23,12 @@ jobs:
         id: date
         run: echo "DATE=$(date +'%Y%m%d')" >> $GITHUB_ENV
 
-      - name: Cache APT Packages
+      - name: Prepare APT cache directory permissions
+        run: |
+          sudo mkdir -p /var/cache/apt/archives/partial
+          sudo chown -R runner:runner /var/cache/apt/archives
+
+      - name: Restore APT Cache
         uses: actions/cache@v6
         with:
           path: /var/cache/apt/archives
