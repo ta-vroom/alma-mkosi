@@ -1,0 +1,18 @@
+[Unit]
+Description=Overlay /etc for Persistent Configuration
+DefaultDependencies=no
+Conflicts=umount.target
+Before=local-fs.target sysinit.target systemd-sysusers.service
+After=var.mount systemd-tmpfiles-setup.service
+Requires=var.mount
+Wants=systemd-tmpfiles-setup.service
+OnFailure=etc-ephemeral-fallback.service
+
+[Mount]
+What=overlay
+Where=/etc
+Type=overlay
+Options=lowerdir=/etc,upperdir=/var/etc,workdir=/var/.etc-work
+
+[Install]
+WantedBy=local-fs.target

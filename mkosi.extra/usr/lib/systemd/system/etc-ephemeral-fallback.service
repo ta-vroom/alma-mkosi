@@ -1,0 +1,10 @@
+[Unit]
+Description=Ephemeral /etc overlay (persistent /var unavailable)
+DefaultDependencies=no
+Before=local-fs.target sysinit.target systemd-sysusers.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/bin/mkdir -p /run/etc-upper /run/etc-work
+ExecStart=/usr/bin/mount -t overlay overlay -o lowerdir=/etc,upperdir=/run/etc-upper,workdir=/run/etc-work /etc
