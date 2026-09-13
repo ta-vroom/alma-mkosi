@@ -1,9 +1,0 @@
-[Unit]
-Description=Persistent Variable Storage Partition
-DefaultDependencies=no
-
-[Mount]
-What=/dev/disk/by-label/var
-Where=/var
-Type=xfs
-Options=defaults
