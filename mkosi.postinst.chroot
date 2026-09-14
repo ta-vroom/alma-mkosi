@@ -12,5 +12,6 @@ for fpr in $(gpg --list-keys --with-colons | awk -F: '$1 == "fpr" {print $10}');
 done
 
 ln -sf /dev/null /etc/systemd/system/systemd-machine-id-commit.service
+ln -sf /run/systemd/resolve/stub-resolv.conf /etc/resolv.conf
 
 ssh-keygen -A
