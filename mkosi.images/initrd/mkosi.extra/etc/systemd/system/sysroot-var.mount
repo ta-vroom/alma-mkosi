@@ -1,9 +1,10 @@
 [Unit]
 Description=Persistent /var
 Before=prepare-etc-overlay.service
+JobRunningTimeoutSec=10s
 
 [Mount]
-What=LABEL=var
+What=PARTLABEL=var
 Where=/sysroot/var
 Type=xfs
-Options=defaults
+Options=defaults,nofail
