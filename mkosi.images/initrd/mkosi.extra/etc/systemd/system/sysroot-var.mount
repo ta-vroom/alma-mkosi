@@ -1,0 +1,9 @@
+[Unit]
+Description=Persistent /var
+Before=prepare-etc-overlay.service
+
+[Mount]
+What=LABEL=var
+Where=/sysroot/var
+Type=xfs
+Options=defaults

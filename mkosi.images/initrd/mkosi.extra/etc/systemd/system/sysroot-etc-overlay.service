@@ -1,0 +1,10 @@
+[Unit]
+Description=Mount /etc overlay
+After=sysroot-var.mount
+Before=initrd-switch-root.target
+Wants=sysroot-var.mount
+
+[Service]
+Type=oneshot
+ExecStart=/usr/libexec/mount-etc-overlay
+RemainAfterExit=yes
