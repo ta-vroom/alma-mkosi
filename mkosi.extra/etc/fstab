@@ -1,0 +1,2 @@
+LABEL=var  /var  ext4     defaults,x-initrd.mount                                                                          0 2
+overlay    /etc  overlay  lowerdir=/etc,upperdir=/var/etc,workdir=/var/.etc-work,x-initrd.mount,x-systemd.requires=var.mount  0 0
