@@ -82,7 +82,7 @@ jobs:
       - name: Build OS Image
         run: |
           printf "%s" "${{ env.RELEASE_TAG }}" > mkosi.version
-          sudo mkosi build --unified-kernel-image-format="alma_${{ env.RELEASE_TAG }}" --initrd=%O/initrd_%v
+          sudo mkosi build --unified-kernel-image-format="alma_${{ env.RELEASE_TAG }}" --initrd=mkosi.output/initrd_${{ env.RELEASE_TAG }}
 
       - name: List files
         if: always()
