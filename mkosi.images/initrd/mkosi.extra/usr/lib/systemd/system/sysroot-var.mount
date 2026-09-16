@@ -1,10 +1,10 @@
 [Unit]
 Description=Persistent /var
 Before=sysroot-etc-overlay.service
-JobRunningTimeoutSec=10s
+ConditionPathExists=/dev/disk/by-partlabel/var
 
 [Mount]
-What=PARTLABEL=var
+What=/dev/disk/by-partlabel/var
 Where=/sysroot/var
 Type=xfs
-Options=defaults,nofail
+Options=defaults

@@ -1,19 +1,15 @@
 #!/bin/sh
 set -eu
 
-if mountpoint -q /sysroot/var && [ -d /sysroot/var/etc ]; then
-
-    mkdir -p /sysroot/var/etc /sysroot/var/.etc-work
-
+if mountpoint -q /sysroot/var; then
     upper=/sysroot/var/etc
     work=/sysroot/var/.etc-work
 else
-
-    mkdir -p /run/etc-upper /run/etc-work
-
     upper=/run/etc-upper
     work=/run/etc-work
 fi
+
+mkdir -p "$upper" "$work"
 
 mount -t overlay overlay \
     -o "lowerdir=/sysroot/etc,upperdir=$upper,workdir=$work" \
