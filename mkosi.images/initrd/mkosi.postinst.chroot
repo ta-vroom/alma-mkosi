@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-mkdir -p /usr/lib/systemd/system/systemd/system/initrd-fs.target.wants
+mkdir -p /usr/lib/systemd/system/system/initrd-fs.target.wants
 ln -sf ../sysroot-etc-overlay.service /usr/lib/systemd/system/initrd-fs.target.wants/
 ln -sf ../sysroot-var.mount /usr/lib/systemd/system/initrd-fs.target.wants/
