@@ -1,3 +1,2 @@
 enable sysroot-var.mount
-enable prepare-etc-overlay.service
-enable sysroot-etc.mount
+enable sysroot-etc-overlay.service

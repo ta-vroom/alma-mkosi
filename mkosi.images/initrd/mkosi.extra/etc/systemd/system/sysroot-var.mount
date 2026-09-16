@@ -1,6 +1,6 @@
 [Unit]
 Description=Persistent /var
-Before=prepare-etc-overlay.service
+Before=sysroot-etc-overlay.service
 JobRunningTimeoutSec=10s
 
 [Mount]

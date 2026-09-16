@@ -1,10 +1,9 @@
 #!/bin/sh
 set -eu
 
-if mountpoint -q /sysroot/var && \
-   [ -d /sysroot/var/etc ]; then
+if mountpoint -q /sysroot/var && [ -d /sysroot/var/etc ]; then
 
-    mkdir -p /sysroot/var/.etc-work
+    mkdir -p /sysroot/var/etc /sysroot/var/.etc-work
 
     upper=/sysroot/var/etc
     work=/sysroot/var/.etc-work
