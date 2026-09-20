@@ -100,12 +100,12 @@ jobs:
 
           VER="${{ env.RELEASE_TAG }}"
           
-          mv ./mkosi.output/alma_${VER}.efi .
-          mv ./mkosi.output/alma_${VER}.raw .
-          mv ./mkosi.output/alma_${VER}.root-x86-64.raw .
-          mv ./mkosi.output/alma_${VER}.root-x86-64-verity.raw .
+          mv ./mkosi.output/*_${VER}.efi .
+          mv ./mkosi.output/*_${VER}.raw .
+          mv ./mkosi.output/*_${VER}.root-x86-64.raw .
+          mv ./mkosi.output/*_${VER}.root-x86-64-verity.raw .
 
-          sha256sum alma_${VER}.* > SHA256SUMS
+          sha256sum *_${VER}.* > SHA256SUMS
           
           gpg --batch --yes --pinentry-mode loopback \
               --passphrase "$GPG_PASSPHRASE" \
@@ -123,8 +123,8 @@ jobs:
           name: "${{ env.RELEASE_TAG }}"
           prerelease: false
           files: |
-            ./alma_*.efi
-            ./alma_*.raw
+            ./*_${VER}.efi
+            ./*_${VER}*.raw
             SHA256SUMS
             SHA256SUMS.gpg
 
