@@ -123,10 +123,8 @@ jobs:
           name: "${{ env.RELEASE_TAG }}"
           prerelease: false
           files: |
-            ./*_${VER}.efi
-            ./*_${VER}*.raw
-            SHA256SUMS
-            SHA256SUMS.gpg
+            ./*${VER}*
+            SHA256SUMS*
 
       - name: Cache packages
         if: always()
