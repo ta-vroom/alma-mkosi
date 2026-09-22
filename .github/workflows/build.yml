@@ -102,8 +102,7 @@ jobs:
           
           mv ./mkosi.output/*_${VER}.efi .
           mv ./mkosi.output/*_${VER}.raw .
-          mv ./mkosi.output/*_${VER}.root-x86-64.raw .
-          mv ./mkosi.output/*_${VER}.root-x86-64-verity.raw .
+          mv ./mkosi.output/*_${VER}.root*.raw .
 
           sha256sum *_${VER}.* > SHA256SUMS
           
