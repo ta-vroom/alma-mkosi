@@ -13,3 +13,6 @@ done
 
 ln -sf /dev/null /etc/systemd/system/systemd-machine-id-commit.service
 ln -sf /run/systemd/resolve/stub-resolv.conf /etc/resolv.conf
+
+# Ensure that only the supplied pubring is used for updates
+rm -f /usr/lib/systemd/import-pubring.pgp
