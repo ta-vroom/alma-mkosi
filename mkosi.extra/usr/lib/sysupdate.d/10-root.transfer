@@ -11,4 +11,3 @@ MatchPattern=root_@v
 PartitionFlags=0
 InstancesMax=2
 ReadOnly=yes
-Mode=0444

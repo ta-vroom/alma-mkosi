@@ -10,4 +10,3 @@ MatchPartitionType=root-verity
 MatchPattern=root_verity_@v
 InstancesMax=2
 ReadOnly=yes
-Mode=0444
