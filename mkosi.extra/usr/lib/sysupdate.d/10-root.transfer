@@ -1,13 +1,13 @@
 [Source]
 Type=url-file
 Path=https://github.com/ta-vroom/alma-mkosi/releases/latest/download/
-MatchPattern=alma_@v.root-x86-64.raw
+MatchPattern=%i_@v.root-x86-64.raw
 
 [Target]
 Type=partition
 Path=auto
 MatchPartitionType=root
-MatchPattern=root_@v
+MatchPattern=%M_@v
 PartitionFlags=0
 InstancesMax=2
 ReadOnly=yes

@@ -1,12 +1,12 @@
 [Source]
 Type=url-file
 Path=https://github.com/ta-vroom/alma-mkosi/releases/latest/download/
-MatchPattern=alma_@v.efi
+MatchPattern=%i_@v.efi
 
 [Target]
 Type=regular-file
 Path=/efi/EFI/Linux
-MatchPattern=alma_@v+@l-@d.efi alma_@v+@l.efi alma_@v.efi
+MatchPattern=%i_@v+@l-@d.efi %i_@v+@l.efi %i_@v.efi
 InstancesMax=2
 Mode=0755
 
