@@ -77,9 +77,10 @@ jobs:
       
       - name: Mkosi variables
         run: |
-          echo "IMAGE=$(mkosi summary --json | jq .Images[] | select(.Image == "main") | .Output)" >> $GITHUB_ENV
-          echo "UKI_FORMAT=$(mkosi summary --json | jq .Images[] | select(.Image == "main") | .UnifiedKernelImageFormat)" >> $GITHUB_ENV
-          echo "OUTPUT_DIR=$(mkosi summary --json | jq .Images[] | select(.Image == "main") | .OutputDirectory)" >> $GITHUB_ENV
+          MAIN=$(mkosi summary --json | jq -r '.Images[] | select(.Image == "main")')
+          echo "IMAGE=$(echo $MAIN | jq -r '.Output')" >> $GITHUB_ENV
+          echo "UKI_FORMAT=$(echo $MAIN | jq -r '.UnifiedKernelImageFormat')" >> $GITHUB_ENV
+          echo "OUTPUT_DIR=$(echo $MAIN | jq -r '.OutputDirectory')" >> $GITHUB_ENV
 
       - name: Build Images
         run: |
