@@ -89,7 +89,7 @@ jobs:
       - name: List files
         if: always()
         run: |
-          ls -la ./${{ env.OUTPUT_DIR }}
+          ls -la ${{ env.OUTPUT_DIR }}
           
       - name: Sign and generate SHA256SUMS
         env:
