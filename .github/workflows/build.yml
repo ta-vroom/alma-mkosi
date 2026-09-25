@@ -98,10 +98,10 @@ jobs:
         run: |
           echo "$GPG_KEY" | gpg --batch --import
           
-          sudo chown -R runner:runner ./${{ env.OUTPUT_DIR }}
+          sudo chown -R runner:runner ${{ env.OUTPUT_DIR }}
 
-          mv ./${{ env.OUTPUT_DIR }}/${{ env.UKI_FORMAT }}.efi .
-          mv ./${{ env.OUTPUT_DIR }}/${{ env.IMAGE }}.raw.* .
+          mv ${{ env.OUTPUT_DIR }}/${{ env.UKI_FORMAT }}.efi .
+          mv ${{ env.OUTPUT_DIR }}/${{ env.IMAGE }}.raw.* .
 
           sha256sum ${{ env.UKI_FORMAT }}.efi ${{ env.IMAGE }}.raw.* > SHA256SUMS
           
@@ -116,8 +116,8 @@ jobs:
           name: "${{ env.RELEASE_TAG }}"
           prerelease: false
           files: |
-            ./${{ env.UKI_FORMAT }}.efi
-            ./${{ env.IMAGE }}.raw.*
+            ${{ env.UKI_FORMAT }}.efi
+            ${{ env.IMAGE }}.raw.*
             SHA256SUMS*
 
       - name: Cache packages
