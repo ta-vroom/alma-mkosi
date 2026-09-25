@@ -23,6 +23,9 @@ mkosi.passphrase
 # mkosi root password
 mkosi.rootpw
 
+# mkosi version
+mkosi.version
+
 # Editor backups
 *~
 *.swp
