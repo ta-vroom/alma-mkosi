@@ -29,7 +29,17 @@ done
 ln -sf /dev/null /etc/systemd/system/systemd-machine-id-commit.service
 ln -sf /run/systemd/resolve/stub-resolv.conf /etc/resolv.conf
 
-rm -rf /afs
+# Not using afs
+rm -rf /afs 
+
+# Delete directories in order to create symlinks
+rm -rf /mnt /opt /srv /root
+
+ln -sf var/home /home
+ln -sf var/roothome /root
+ln -sf var/mnt /mnt
+ln -sf var/opt /opt
+ln -sf var/srv /srv
 
 # Give ParticleOS its own identity/branding via os-release +
 # issue. Note that we keep the original $ID, $VERSION and $VERSION_ID

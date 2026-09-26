@@ -1,7 +1,10 @@
 [Unit]
 Description=Persistent /var
 Before=sysroot-etc-overlay.service
-ConditionPathExists=/dev/disk/by-partlabel/var
+DefaultDependencies=no
+Conflicts=umount.target
+After=systemd-repart.service
+Requires=systemd-repart.service
 
 [Mount]
 What=/dev/disk/by-partlabel/var
