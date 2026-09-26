@@ -1,6 +1,6 @@
 [Unit]
 Description=Persistent /var
-Before=sysroot-etc-overlay.service
+Before=sysroot-etc-overlay.service initrd-switch-root.target
 DefaultDependencies=no
 Conflicts=umount.target
 After=systemd-repart.service
