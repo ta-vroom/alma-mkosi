@@ -101,7 +101,7 @@ jobs:
           sudo chown -R runner:runner ${{ env.OUTPUT_DIR }}
 
           # Strip UUID
-          for f in ${{ env.OUTPUT_DIR }}/${{ env.IMAGE }}.root-x86-64*.raw.zst; do mv "$f" "./${f##*verity.}"; done
+          for f in ${{ env.OUTPUT_DIR }}/${{ env.IMAGE }}.root-x86-64*.raw.zst; do mv "$f" "./$(basename "${f/\.[a-f0-9]*\.raw\.zst/.raw.zst}")"; done
 
           mv ${{ env.OUTPUT_DIR }}/${{ env.UKI_FORMAT }}.efi .
           mv ${{ env.OUTPUT_DIR }}/${{ env.IMAGE }}.raw.* .
