@@ -100,10 +100,13 @@ jobs:
           
           sudo chown -R runner:runner ${{ env.OUTPUT_DIR }}
 
+          # Strip UUID
+          for f in ${{ env.OUTPUT_DIR }}/${{ env.IMAGE }}.root-x86-64*.raw.zst; do mv "$f" "./${f##*verity.}"; done
+
           mv ${{ env.OUTPUT_DIR }}/${{ env.UKI_FORMAT }}.efi .
           mv ${{ env.OUTPUT_DIR }}/${{ env.IMAGE }}.raw.* .
-
-          sha256sum ${{ env.UKI_FORMAT }}.efi ${{ env.IMAGE }}.raw.* > SHA256SUMS
+          
+          sha256sum ${{ env.UKI_FORMAT }}.efi ${{ env.IMAGE }}.* > SHA256SUMS
           
           gpg --batch --yes --pinentry-mode loopback \
               --passphrase "$GPG_PASSPHRASE" \
@@ -117,7 +120,7 @@ jobs:
           prerelease: false
           files: |
             ${{ env.UKI_FORMAT }}.efi
-            ${{ env.IMAGE }}.raw.*
+            ${{ env.IMAGE }}.*
             SHA256SUMS*
 
       - name: Cache packages
