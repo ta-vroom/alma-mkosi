@@ -1,0 +1,116 @@
+name: Verify mkosi & systemd-sysupdate
+
+on:
+  push:
+    branches: [ main, "agent/**" ]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  sysupdate-e2e:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup latest mkosi & dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y qemu-system-x86 qemu-utils ovmf systemd-container \
+            systemd-ukify sbsigntool socat openssh-client python3-pip systemd-boot systemd-repart systemd-ukify python3-pefile binutils mtools erofs-utils
+            
+          pipx install git+https://github.com/systemd/mkosi.git
+          
+          # Ensure KVM acceleration is accessible
+          test -e /dev/kvm && sudo chmod 666 /dev/kvm
+
+      - name: Prepare SSH Keys & Signing Keys
+        run: |
+          ssh-keygen -t ed25519 -f /tmp/ci_id_ed25519 -N ""
+          mkdir -p mkosi.extra/root/.ssh
+          cp /tmp/ci_id_ed25519.pub mkosi.extra/root/.ssh/authorized_keys
+          chmod 700 mkosi.extra/root/.ssh
+          chmod 600 mkosi.extra/root/.ssh/authorized_keys
+          mkosi genkey
+
+      - name: Build v1.0.0 Base Image
+        run: |
+          mkosi --image-version=1.0.0 --split-artifacts=yes build
+          cp mkosi.output/image.raw ./disk-test.raw
+          # Expand raw disk by 4G so an empty B-partition slot has room if created via systemd-repart
+          qemu-img resize -f raw ./disk-test.raw +4G
+
+      - name: Build v1.0.1 Update Payload & Start HTTP Server
+        run: |
+          rm -rf mkosi.output/*
+          mkosi --image-version=1.0.1 --split-artifacts=yes build
+          
+          mkdir -p /tmp/update-srv
+          # Copy split root partition and/or UKI artifacts
+          cp mkosi.output/*.root-*.raw* /tmp/update-srv/ 2>/dev/null || true
+          cp mkosi.output/*.efi /tmp/update-srv/ 2>/dev/null || true
+          
+          cd /tmp/update-srv
+          sha256sum * > SHA256SUMS
+          python3 -m http.server 8000 --bind 0.0.0.0 &
+          echo "HTTP_PID=$!" >> $GITHUB_ENV
+
+      - name: Boot v1.0.0 (UEFI) & Run systemd-sysupdate
+        run: |
+          # Copy writable OVMF_VARS so UEFI boot entries persist across reboots
+          cp /usr/share/OVMF/OVMF_VARS_4M.fd ./ovmf_vars.fd
+
+          qemu-system-x86_64 \
+            -enable-kvm -cpu host -m 2G -smp 2 \
+            -drive if=pflash,format=raw,readonly=on,file=/usr/share/OVMF/OVMF_CODE_4M.fd \
+            -drive if=pflash,format=raw,file=./ovmf_vars.fd \
+            -drive file=./disk-test.raw,format=raw,if=virtio \
+            -net nic,model=virtio \
+            -net user,hostfwd=tcp:127.0.0.1:2222-:22 \
+            -nographic -serial mon:stdio &
+          QEMU_PID=$!
+
+          SSH_CMD="ssh -i /tmp/ci_id_ed25519 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=3 -p 2222 root@127.0.0.1"
+
+          echo "Waiting for v1.0.0 guest SSH..."
+          for i in {1..45}; do
+            if $SSH_CMD "true" 2>/dev/null; then break; fi
+            sleep 2
+          done
+
+          # Verify sysupdate unit and trigger update with --verify=no (since SHA256SUMS is unsigned)
+          $SSH_CMD "systemctl status systemd-sysupdate.timer || true"
+          $SSH_CMD "/usr/lib/systemd/systemd-sysupdate list --verify=no"
+          $SSH_CMD "/usr/lib/systemd/systemd-sysupdate update --verify=no"
+
+          # Power off cleanly so filesystems and EFI vars flush
+          $SSH_CMD "systemctl poweroff" || true
+          wait $QEMU_PID || true
+
+      - name: Boot Updated Slot & Assert v1.0.1
+        run: |
+          qemu-system-x86_64 \
+            -enable-kvm -cpu host -m 2G -smp 2 \
+            -drive if=pflash,format=raw,readonly=on,file=/usr/share/OVMF/OVMF_CODE_4M.fd \
+            -drive if=pflash,format=raw,file=./ovmf_vars.fd \
+            -drive file=./disk-test.raw,format=raw,if=virtio \
+            -net nic,model=virtio \
+            -net user,hostfwd=tcp:127.0.0.1:2222-:22 \
+            -nographic -serial mon:stdio &
+          QEMU_PID=$!
+
+          SSH_CMD="ssh -i /tmp/ci_id_ed25519 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=3 -p 2222 root@127.0.0.1"
+
+          for i in {1..45}; do
+            if $SSH_CMD "true" 2>/dev/null; then break; fi
+            sleep 2
+          done
+
+          BOOTED_VER=$($SSH_CMD ". /etc/os-release && echo \$IMAGE_VERSION")
+          echo "Booted Version: $BOOTED_VER"
+          test "$BOOTED_VER" = "1.0.1"
+
+          $SSH_CMD "systemctl poweroff" || kill -9 $QEMU_PID
+          kill -9 $HTTP_PID || true
