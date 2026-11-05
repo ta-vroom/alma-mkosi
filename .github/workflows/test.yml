@@ -40,8 +40,8 @@ jobs:
           StrictModes no
           EOF
 
-          # Point sysupdate transfer definitions at the QEMU host HTTP server
-          sed -i 's|^Path=.*|Path=http://10.0.2.2:8000/|' mkosi.extra/usr/lib/sysupdate.d/*.transfer
+          # Point sysupdate [Source] transfer definitions at the QEMU host HTTP server
+          sed -i 's|^Path=https://.*|Path=http://10.0.2.2:8000/|' mkosi.extra/usr/lib/sysupdate.d/*.transfer
 
           mkosi genkey
 
