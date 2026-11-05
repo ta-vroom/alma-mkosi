@@ -1,7 +1,10 @@
+[Transfer]
+ProtectVersion=%A
+
 [Source]
 Type=url-file
 Path=https://github.com/ta-vroom/alma-mkosi/releases/latest/download/
-MatchPattern=%i_@v.root-x86-64-verity.raw.zst
+MatchPattern=%M_@v_%a.root-%a-verity.@u.raw.zst
 
 [Target]
 Type=partition
