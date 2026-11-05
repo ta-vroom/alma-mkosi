@@ -1,0 +1,153 @@
+name: Verify mkosi & systemd-sysupdate
+
+on:
+  push:
+    branches: [ main, fedora, "agent/**" ]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  sysupdate-e2e:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup mkosi
+        uses: systemd/mkosi@v27
+
+      - name: Setup QEMU & dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y qemu-system-x86 qemu-utils ovmf systemd-container \
+            systemd-ukify sbsigntool socat openssh-client python3-pip systemd-boot \
+            systemd-repart python3-pefile binutils mtools erofs-utils xfsprogs zstd dnf
+
+          # Ensure KVM acceleration is accessible
+          test -e /dev/kvm && sudo chmod 666 /dev/kvm || true
+
+      - name: Prepare SSH Keys, Signing Keys & Test Transfer URLs
+        run: |
+          ssh-keygen -t ed25519 -f /tmp/ci_id_ed25519 -N ""
+          mkdir -p mkosi.extra/etc/ssh/sshd_config.d
+          cp /tmp/ci_id_ed25519.pub mkosi.extra/etc/ssh/authorized_keys
+          chmod 644 mkosi.extra/etc/ssh/authorized_keys
+          cat > mkosi.extra/etc/ssh/sshd_config.d/99-ci.conf <<'EOF'
+          PermitRootLogin prohibit-password
+          AuthorizedKeysFile .ssh/authorized_keys /etc/ssh/authorized_keys
+          StrictModes no
+          EOF
+
+          # Point sysupdate [Source] transfer definitions at the QEMU host HTTP server
+          sed -i 's|^Path=https://.*|Path=http://10.0.2.2:8000/|' mkosi.extra/usr/lib/sysupdate.d/*.transfer
+
+          mkosi genkey
+
+      - name: Build v1.0.0 Base Image
+        run: |
+          sudo mkosi --image-version=1.0.0 --kernel-command-line-extra="console=ttyS0,115200n8" --force build
+          sudo chown -R "$USER:$USER" mkosi.output
+          zstd -d mkosi.output/alma_1.0.0_x86-64.raw.zst -o ./disk-test.raw
+          # Expand raw disk by 6G so systemd-repart can grow Slot A, create empty Slot B, and format /var
+          qemu-img resize -f raw ./disk-test.raw +6G
+
+      - name: Build v1.0.1 Update Payload & Start HTTP Server
+        run: |
+          sudo rm -rf mkosi.output/*
+          sudo mkosi --image-version=1.0.1 --kernel-command-line-extra="console=ttyS0,115200n8" --force build
+          sudo chown -R "$USER:$USER" mkosi.output
+
+          mkdir -p /tmp/update-srv
+          cp mkosi.output/alma_1.0.1_x86-64.root-*.raw.zst /tmp/update-srv/
+          cp mkosi.output/alma_1.0.1_x86-64.efi /tmp/update-srv/
+
+          cd /tmp/update-srv
+          sha256sum * > SHA256SUMS
+          cat SHA256SUMS
+          python3 -m http.server 8000 --bind 0.0.0.0 &
+          echo "HTTP_PID=$!" >> $GITHUB_ENV
+
+      - name: Boot v1.0.0 (UEFI), Verify systemd-repart & Run systemd-sysupdate
+        run: |
+          # Copy writable OVMF_VARS so UEFI boot entries persist across reboots
+          cp /usr/share/OVMF/OVMF_VARS_4M.fd ./ovmf_vars.fd
+
+          qemu-system-x86_64 \
+            -enable-kvm -cpu host -m 2G -smp 2 \
+            -drive if=pflash,format=raw,readonly=on,file=/usr/share/OVMF/OVMF_CODE_4M.fd \
+            -drive if=pflash,format=raw,file=./ovmf_vars.fd \
+            -drive file=./disk-test.raw,format=raw,if=virtio \
+            -net nic,model=virtio \
+            -net user,hostfwd=tcp:127.0.0.1:2222-:22 \
+            -nographic -serial mon:stdio &
+          QEMU_PID=$!
+
+          SSH_CMD="ssh -i /tmp/ci_id_ed25519 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=3 -p 2222 root@127.0.0.1"
+
+          echo "Waiting for v1.0.0 guest SSH..."
+          CONNECTED=0
+          for i in {1..60}; do
+            if $SSH_CMD "true" 2>/dev/null; then
+              CONNECTED=1
+              break
+            fi
+            sleep 2
+          done
+          test "$CONNECTED" -eq 1
+
+          # 1. Verify systemd-repart.service succeeded on boot
+          $SSH_CMD "systemctl status systemd-repart.service --no-pager"
+
+          # 2. Verify the partition table actually has the '_empty' B slots and /var
+          $SSH_CMD "lsblk -o NAME,PARTLABEL,PARTTYPE,PARTUUID,SIZE"
+          $SSH_CMD "blkid -t PARTLABEL=_empty"
+
+          # 3. Verify systemd-sysupdate sees the empty slot and the remote v1.0.1 update
+          $SSH_CMD "/usr/lib/systemd/systemd-sysupdate components"
+          $SSH_CMD "/usr/lib/systemd/systemd-sysupdate list --verify=no"
+
+          # 4. Run the update and check that '_empty' was renamed to 'alma_1.0.1' / 'alma_1.0.1_verity'
+          $SSH_CMD "/usr/lib/systemd/systemd-sysupdate update --verify=no"
+          $SSH_CMD "lsblk -o NAME,PARTLABEL,PARTUUID,SIZE"
+
+          # Power off cleanly so filesystems and EFI vars flush
+          $SSH_CMD "systemctl poweroff" || true
+          wait $QEMU_PID || true
+
+      - name: Boot Updated Slot & Assert v1.0.1
+        run: |
+          qemu-system-x86_64 \
+            -enable-kvm -cpu host -m 2G -smp 2 \
+            -drive if=pflash,format=raw,readonly=on,file=/usr/share/OVMF/OVMF_CODE_4M.fd \
+            -drive if=pflash,format=raw,file=./ovmf_vars.fd \
+            -drive file=./disk-test.raw,format=raw,if=virtio \
+            -net nic,model=virtio \
+            -net user,hostfwd=tcp:127.0.0.1:2222-:22 \
+            -nographic -serial mon:stdio &
+          QEMU_PID=$!
+
+          SSH_CMD="ssh -i /tmp/ci_id_ed25519 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=3 -p 2222 root@127.0.0.1"
+
+          echo "Waiting for v1.0.1 guest SSH..."
+          CONNECTED=0
+          for i in {1..60}; do
+            if $SSH_CMD "true" 2>/dev/null; then
+              CONNECTED=1
+              break
+            fi
+            sleep 2
+          done
+          test "$CONNECTED" -eq 1
+
+          $SSH_CMD "lsblk -o NAME,PARTLABEL,PARTUUID,MOUNTPOINTS,SIZE"
+          BOOTED_VER=$($SSH_CMD ". /usr/lib/os-release && echo \$IMAGE_VERSION")
+          echo "Booted Version: $BOOTED_VER"
+          test "$BOOTED_VER" = "1.0.1"
+
+          # Verify /dev/mapper/root is backed by the alma_1.0.1 partition (Slot B)
+          $SSH_CMD "lsblk -s -no PARTLABEL /dev/mapper/root | grep -qx alma_1.0.1"
+
+          $SSH_CMD "systemctl poweroff" || kill -9 $QEMU_PID
+          kill -9 $HTTP_PID || true

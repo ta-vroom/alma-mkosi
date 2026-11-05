@@ -1,0 +1,16 @@
+[Transfer]
+ProtectVersion=%A
+
+[Source]
+Type=url-file
+Path=https://github.com/ta-vroom/alma-mkosi/releases/latest/download/
+MatchPattern=%M_@v_%a.root-%a.@u.raw.zst
+
+[Target]
+Type=partition
+Path=auto
+MatchPartitionType=root
+MatchPattern=%M_@v
+PartitionFlags=0
+InstancesMax=2
+ReadOnly=yes

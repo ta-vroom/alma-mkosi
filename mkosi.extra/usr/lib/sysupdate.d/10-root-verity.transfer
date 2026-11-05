@@ -1,0 +1,15 @@
+[Transfer]
+ProtectVersion=%A
+
+[Source]
+Type=url-file
+Path=https://github.com/ta-vroom/alma-mkosi/releases/latest/download/
+MatchPattern=%M_@v_%a.root-%a-verity.@u.raw.zst
+
+[Target]
+Type=partition
+Path=auto
+MatchPartitionType=root-verity
+MatchPattern=%M_@v_verity
+InstancesMax=2
+ReadOnly=yes
