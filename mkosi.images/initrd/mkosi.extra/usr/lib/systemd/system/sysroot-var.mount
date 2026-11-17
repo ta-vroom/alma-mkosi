@@ -3,7 +3,8 @@ Description=Persistent /var
 DefaultDependencies=no
 Conflicts=umount.target
 After=systemd-repart.service sysroot.mount
-Requires=systemd-repart.service sysroot.mount
+Wants=systemd-repart.service
+Requires=sysroot.mount
 Before=sysroot-etc-overlay.service initrd-fs.target initrd-switch-root.target
 
 [Mount]
