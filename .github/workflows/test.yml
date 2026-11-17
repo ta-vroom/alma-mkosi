@@ -1,8 +1,9 @@
 name: Verify mkosi & systemd-sysupdate
 
 on:
+  workflow_call:
   push:
-    branches: [ main, fedora, "agent/**" ]
+    branches: [ fedora, "agent/**" ]
   pull_request:
   workflow_dispatch:
 

@@ -8,9 +8,14 @@ env:
 on: 
   workflow_dispatch:
   push:
+    branches: [ main ]
 
 jobs:
+  test:
+    uses: ./.github/workflows/test.yml
+
   build_release:
+    needs: test
     name: Build Image
     permissions:
       contents: write
