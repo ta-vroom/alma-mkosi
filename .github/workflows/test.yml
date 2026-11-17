@@ -44,8 +44,6 @@ jobs:
           # Point sysupdate [Source] transfer definitions at the QEMU host HTTP server
           sed -i 's|^Path=https://.*|Path=http://10.0.2.2:8000/|' mkosi.extra/usr/lib/sysupdate.d/*.transfer
 
-          mkosi genkey
-
       - name: Build v1.0.0 Base Image
         run: |
           sudo mkosi --image-version=1.0.0 --kernel-command-line-extra="console=ttyS0,115200n8" --force build
