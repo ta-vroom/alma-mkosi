@@ -44,9 +44,12 @@ jobs:
           # Point sysupdate [Source] transfer definitions at the QEMU host HTTP server
           sed -i 's|^Path=https://.*|Path=http://10.0.2.2:8000/|' mkosi.extra/usr/lib/sysupdate.d/*.transfer
 
+          # Enable serial console logging for headless QEMU CI builds only
+          sed -i '/^KernelCommandLine=/a \    console=ttyS0,115200n8' mkosi.conf
+
       - name: Build v1.0.0 Base Image
         run: |
-          sudo mkosi --image-version=1.0.0 --kernel-command-line-extra="console=ttyS0,115200n8" --force build
+          sudo mkosi --image-version=1.0.0 --force build
           sudo chown -R "$USER:$USER" mkosi.output
           zstd -d mkosi.output/alma_1.0.0_x86-64.raw.zst -o ./disk-test.raw
           # Expand raw disk by 6G so systemd-repart can grow Slot A, create empty Slot B, and format /var
@@ -55,7 +58,7 @@ jobs:
       - name: Build v1.0.1 Update Payload & Start HTTP Server
         run: |
           sudo rm -rf mkosi.output/*
-          sudo mkosi --image-version=1.0.1 --kernel-command-line-extra="console=ttyS0,115200n8" --force build
+          sudo mkosi --image-version=1.0.1 --force build
           sudo chown -R "$USER:$USER" mkosi.output
 
           mkdir -p /tmp/update-srv
