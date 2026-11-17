@@ -1,1 +1,2 @@
 enable tmp.mount
+enable var.mount

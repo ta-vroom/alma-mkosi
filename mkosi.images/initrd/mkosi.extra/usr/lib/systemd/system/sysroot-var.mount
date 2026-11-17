@@ -1,10 +1,10 @@
 [Unit]
 Description=Persistent /var
-Before=sysroot-etc-overlay.service initrd-switch-root.target
 DefaultDependencies=no
 Conflicts=umount.target
-After=systemd-repart.service
-Requires=systemd-repart.service
+After=systemd-repart.service sysroot.mount
+Requires=systemd-repart.service sysroot.mount
+Before=sysroot-etc-overlay.service initrd-root-fs.target initrd-parse-etc.service initrd-fs.target initrd-switch-root.target
 
 [Mount]
 What=/dev/disk/by-partlabel/var

@@ -105,19 +105,26 @@ jobs:
           $SSH_CMD "lsblk -o NAME,PARTLABEL,PARTTYPE,PARTUUID,SIZE"
           $SSH_CMD "blkid -t PARTLABEL=_empty"
 
-          # 3. Verify systemd-sysupdate sees the empty slot and the remote v1.0.1 update
+          # 3. Verify persistent /var and /etc overlay are mounted and write test markers
+          $SSH_CMD 'test "$(findmnt -n -o SOURCE /var)" = "$(blkid -t PARTLABEL=var -o device)"'
+          $SSH_CMD 'test "$(findmnt -n -o FSTYPE /etc)" = "overlay"'
+          $SSH_CMD 'mkdir -p /var/lib && echo "var-persisted-from-1.0.0" > /var/lib/persist-test'
+          $SSH_CMD 'echo "etc-persisted-from-1.0.0" > /etc/persist-etc-test'
+
+          # 4. Verify systemd-sysupdate sees the empty slot and the remote v1.0.1 update
           $SSH_CMD "/usr/lib/systemd/systemd-sysupdate components"
           $SSH_CMD "/usr/lib/systemd/systemd-sysupdate list --verify=no"
 
-          # 4. Run the update and check that '_empty' was renamed to 'alma_1.0.1' / 'alma_1.0.1_verity'
+          # 5. Run the update and verify '_empty' became 'alma_1.0.1' and boot-counted UKI exists
           $SSH_CMD "/usr/lib/systemd/systemd-sysupdate update --verify=no"
           $SSH_CMD "lsblk -o NAME,PARTLABEL,PARTUUID,SIZE"
+          $SSH_CMD 'ESP_DIR=$(bootctl --print-esp-path) && ls -la "$ESP_DIR/EFI/Linux/" && test -f "$ESP_DIR/EFI/Linux/alma_1.0.1_x86-64+3-0.efi"'
 
           # Power off cleanly so filesystems and EFI vars flush
           $SSH_CMD "systemctl poweroff" || true
           wait $QEMU_PID || true
 
-      - name: Boot Updated Slot & Assert v1.0.1
+      - name: Boot Updated Slot, Verify Blessing & Persistence, and Test Automatic Rollback
         run: |
           qemu-system-x86_64 \
             -enable-kvm -cpu host -m 2G -smp 2 \
@@ -150,5 +157,58 @@ jobs:
           # Verify /dev/mapper/root is backed by the alma_1.0.1 partition (Slot B)
           $SSH_CMD "lsblk -s -no PARTLABEL /dev/mapper/root | grep -qx alma_1.0.1"
 
-          $SSH_CMD "systemctl poweroff" || kill -9 $QEMU_PID
+          # Verify persistent /var and /etc overlay survived the A -> B slot switch
+          $SSH_CMD 'test "$(findmnt -n -o SOURCE /var)" = "$(blkid -t PARTLABEL=var -o device)"'
+          $SSH_CMD 'test "$(findmnt -n -o FSTYPE /etc)" = "overlay"'
+          $SSH_CMD 'test "$(cat /var/lib/persist-test)" = "var-persisted-from-1.0.0"'
+          $SSH_CMD 'test "$(cat /etc/persist-etc-test)" = "etc-persisted-from-1.0.0"'
+
+          # Verify systemd-bless-boot marks the new UKI as good and strips the +tries suffix
+          $SSH_CMD "systemctl start systemd-bless-boot.service"
+          $SSH_CMD "/usr/lib/systemd/systemd-bless-boot status | grep -qx good"
+          $SSH_CMD 'ESP_DIR=$(bootctl --print-esp-path) && ls -la "$ESP_DIR/EFI/Linux/" && test -f "$ESP_DIR/EFI/Linux/alma_1.0.1_x86-64.efi" && ! test -e "$ESP_DIR/EFI/Linux/alma_1.0.1_x86-64+3-0.efi"'
+
+          # Simulate a bad update with 1 try remaining that reboots before boot-complete.target
+          $SSH_CMD 'ESP_DIR=$(bootctl --print-esp-path) && mv "$ESP_DIR/EFI/Linux/alma_1.0.1_x86-64.efi" "$ESP_DIR/EFI/Linux/alma_1.0.1_x86-64+1-0.efi"'
+          $SSH_CMD 'cat > /etc/systemd/system/simulate-bad-update.service <<'"'"'EOF'"'"'
+          [Unit]
+          Description=Simulate failing boot on v1.0.1 before boot-complete.target
+          DefaultDependencies=no
+          ConditionOSRelease=IMAGE_VERSION=1.0.1
+          Before=boot-complete.target systemd-bless-boot.service multi-user.target sshd.service
+
+          [Service]
+          Type=oneshot
+          ExecStart=/usr/bin/systemctl --force --force reboot
+          EOF
+          mkdir -p /etc/systemd/system/sysinit.target.wants
+          ln -sf ../simulate-bad-update.service /etc/systemd/system/sysinit.target.wants/simulate-bad-update.service
+          sync'
+
+          echo "Rebooting into simulated bad v1.0.1 (+1-0) to verify automatic fallback to v1.0.0..."
+          $SSH_CMD "systemctl reboot" || true
+          sleep 5
+
+          CONNECTED=0
+          for i in {1..75}; do
+            if $SSH_CMD "true" 2>/dev/null; then
+              CONNECTED=1
+              break
+            fi
+            sleep 2
+          done
+          test "$CONNECTED" -eq 1
+
+          ROLLBACK_VER=$($SSH_CMD ". /usr/lib/os-release && echo \$IMAGE_VERSION")
+          echo "Rolled-back Booted Version: $ROLLBACK_VER"
+          test "$ROLLBACK_VER" = "1.0.0"
+
+          # Verify fallback booted Slot A (alma_1.0.0), v1.0.1 exhausted tries (+0-1), and state stayed intact
+          $SSH_CMD "lsblk -s -no PARTLABEL /dev/mapper/root | grep -qx alma_1.0.0"
+          $SSH_CMD 'ESP_DIR=$(bootctl --print-esp-path) && ls -la "$ESP_DIR/EFI/Linux/" && test -f "$ESP_DIR/EFI/Linux/alma_1.0.1_x86-64+0-1.efi"'
+          $SSH_CMD 'test "$(cat /var/lib/persist-test)" = "var-persisted-from-1.0.0"'
+          $SSH_CMD 'test "$(cat /etc/persist-etc-test)" = "etc-persisted-from-1.0.0"'
+
+          $SSH_CMD "systemctl poweroff" || true
+          wait $QEMU_PID || kill -9 $QEMU_PID || true
           kill -9 $HTTP_PID || true
