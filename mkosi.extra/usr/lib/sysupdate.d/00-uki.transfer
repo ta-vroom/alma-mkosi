@@ -1,15 +1,19 @@
+[Transfer]
+ProtectVersion=%A
+
 [Source]
 Type=url-file
 Path=https://github.com/ta-vroom/alma-mkosi/releases/latest/download/
-MatchPattern=alma_@v.efi
+MatchPattern=%M_@v_%a.efi
 
 [Target]
 Type=regular-file
-Path=/efi/EFI/Linux
-MatchPattern=alma_@v+@l-@d.efi alma_@v+@l.efi alma_@v.efi
-InstancesMax=2
-Mode=0755
-
-# SD-boot counting
+Path=/EFI/Linux
+PathRelativeTo=esp
+MatchPattern=%M_@v_%a+@l-@d.efi \
+             %M_@v_%a+@l.efi \
+             %M_@v_%a.efi
+Mode=0444
 TriesLeft=3
 TriesDone=0
+InstancesMax=2

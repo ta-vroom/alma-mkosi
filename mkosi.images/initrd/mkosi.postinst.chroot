@@ -7,11 +7,4 @@ ln -sf ../sysroot-var.mount /usr/lib/systemd/system/initrd-fs.target.wants/
 
 chmod 755 /usr/libexec/mount-etc-overlay
 
-if [ -d /efi/EFI/Linux ]; then
-    for f in /efi/EFI/Linux/*.efi; do
-        [ -f "$f" ] || continue
-        # Rename app.efi -> app+3.efi
-        base="${f%.efi}"
-        mv "$f" "${base}+3.efi"
-    done
-fi
+rm -rf /afs

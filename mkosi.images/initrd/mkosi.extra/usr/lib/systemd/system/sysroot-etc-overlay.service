@@ -1,8 +1,9 @@
 [Unit]
 Description=Mount /etc overlay
+DefaultDependencies=no
 After=sysroot-var.mount
-Before=initrd-switch-root.target
-Wants=sysroot-var.mount
+Requires=sysroot-var.mount
+Before=initrd-root-fs.target initrd-parse-etc.service initrd-fs.target initrd-switch-root.target
 
 [Service]
 Type=oneshot
