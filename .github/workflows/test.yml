@@ -305,10 +305,11 @@ jobs:
           cat > /etc/systemd/system/systemd-bless-boot.service.d/simulate-bad-update.conf <<'"'"'EOF'"'"'
           [Unit]
           ConditionOSRelease=IMAGE_VERSION=1.0.1
+          FailureAction=reboot-force
 
           [Service]
           ExecStart=
-          ExecStart=/bin/sh -c '\''grep -qx "IMAGE_VERSION=1.0.1" /usr/lib/os-release && systemctl --force --force reboot'\''
+          ExecStart=/usr/bin/false
           EOF
           sync'
 
