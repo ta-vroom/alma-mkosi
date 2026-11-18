@@ -289,7 +289,7 @@ jobs:
               journalctl -b -u systemd-bless-boot.service --no-pager
               bootctl status --no-pager
               ls -la /sys/firmware/efi/efivars | grep -iE "loader|bootcount" || true
-              tr -d "\0" < /sys/firmware/efi/efivars/LoaderBootCountPath-4a67b082-0a4c-41cf-b6c7-440b29bb8c4f || true; echo
+              cat /sys/firmware/efi/efivars/LoaderBootCountPath-* 2>/dev/null | tr -d '\0'; echo
               findmnt /boot /efi || true
               ls -la "$(bootctl --print-esp-path)/EFI/Linux/" || true
               /usr/lib/systemd/systemd-bless-boot status || true
@@ -297,7 +297,7 @@ jobs:
             echo "::endgroup::"
             exit 1
           fi
-
+              
           # Simulate a bad update with 1 try remaining that reboots before boot-complete.target
           $SSH_CMD 'ESP_DIR=$(bootctl --print-esp-path) && mv "$ESP_DIR/EFI/Linux/alma_1.0.1_x86-64.efi" "$ESP_DIR/EFI/Linux/alma_1.0.1_x86-64+1-0.efi"'
           $SSH_CMD 'set -euo pipefail
