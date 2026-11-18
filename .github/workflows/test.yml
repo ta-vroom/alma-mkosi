@@ -260,13 +260,20 @@ jobs:
           $SSH_CMD 'test "$(cat /var/lib/persist-test)" = "var-persisted-from-1.0.0"'
           $SSH_CMD 'test "$(cat /etc/persist-etc-test)" = "etc-persisted-from-1.0.0"'
 
-          # Verify systemd-bless-boot marks the new UKI as good and strips the +tries suffix
+          # Verify systemd-boot decremented +3-0 -> +2-1 and systemd-bless-boot marks it good
           verify_bless_boot() {
-            $SSH_CMD "systemctl start systemd-bless-boot.service" &&
-            $SSH_CMD "/usr/lib/systemd/systemd-bless-boot status | grep -qx good" &&
             $SSH_CMD '
               set -euo pipefail
               ESP_DIR=$(bootctl --print-esp-path)
+              BOOTCOUNT_VAR="/sys/firmware/efi/efivars/LoaderBootCountPath-4a67b082-0a4c-41cf-b6c7-440b29bb8c4f"
+              test -f "$BOOTCOUNT_VAR"
+              tr -d "\0" < "$BOOTCOUNT_VAR" | grep -qaF "alma_1.0.1_x86-64+2-1.efi"
+              BLESS_STATUS=$(/usr/lib/systemd/systemd-bless-boot status || true)
+              if [ "$BLESS_STATUS" != "good" ]; then
+                test -f "$ESP_DIR/EFI/Linux/alma_1.0.1_x86-64+2-1.efi"
+              fi
+              systemctl start systemd-bless-boot.service
+              /usr/lib/systemd/systemd-bless-boot status | grep -qx good
               ls -la "$ESP_DIR/EFI/Linux/"
               test -f "$ESP_DIR/EFI/Linux/alma_1.0.1_x86-64.efi"
               ! find "$ESP_DIR/EFI/Linux/" -maxdepth 1 -name "alma_1.0.1_x86-64+*.efi" | grep -q .
@@ -280,6 +287,7 @@ jobs:
               journalctl -b -u systemd-bless-boot.service --no-pager
               bootctl status --no-pager
               ls -la /sys/firmware/efi/efivars | grep -iE "loader|bootcount" || true
+              tr -d "\0" < /sys/firmware/efi/efivars/LoaderBootCountPath-4a67b082-0a4c-41cf-b6c7-440b29bb8c4f || true; echo
               findmnt /boot /efi || true
               ls -la "$(bootctl --print-esp-path)/EFI/Linux/" || true
               /usr/lib/systemd/systemd-bless-boot status || true
