@@ -305,6 +305,7 @@ jobs:
           cat > /etc/systemd/system/systemd-bless-boot.service.d/simulate-bad-update.conf <<'"'"'EOF'"'"'
           [Unit]
           ConditionOSRelease=IMAGE_VERSION=1.0.1
+          Before=sshd.service multi-user.target
           FailureAction=reboot-force
 
           [Service]
