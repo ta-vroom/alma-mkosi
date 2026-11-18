@@ -3,8 +3,10 @@ name: Verify mkosi & systemd-sysupdate
 on:
   workflow_call:
   push:
-    branches: [ fedora, "agent/**" ]
+    branches-ignore:
+      - main
   pull_request:
+    branches: [ main ]
   workflow_dispatch:
 
 jobs:
