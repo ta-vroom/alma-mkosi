@@ -13,7 +13,7 @@ PathRelativeTo=esp
 MatchPattern=%M_@v_%a+@l-@d.efi \
              %M_@v_%a+@l.efi \
              %M_@v_%a.efi
-Mode=0444
+Mode=0644
 TriesLeft=3
 TriesDone=0
 InstancesMax=2

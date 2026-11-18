@@ -1,20 +1,22 @@
 name: Verify mkosi & systemd-sysupdate
 
 on:
-  workflow_call:
-  push:
-    branches: [ fedora, "agent/**" ]
   pull_request:
   workflow_dispatch:
+  workflow_call:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
 
 jobs:
   sysupdate-e2e:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 30
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Setup mkosi
         uses: systemd/mkosi@v27
@@ -28,6 +30,73 @@ jobs:
 
           # Ensure KVM acceleration is accessible
           test -e /dev/kvm && sudo chmod 666 /dev/kvm || true
+
+      - name: Write shared CI helpers
+        run: |
+          cat > /tmp/ci-lib.sh <<'EOF'
+          SSH_CMD="ssh -i /tmp/ci_id_ed25519 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=3 -p 2222 root@127.0.0.1"
+          FATAL_RE='You are in emergency mode|Give root password for maintenance|Please configure the system|Kernel panic|Timed out waiting for device'
+
+          # wait_ssh <tries> <serial-log>
+          # Polls SSH, but bails out immediately if the serial log shows a fatal boot state.
+          wait_ssh() {
+            local tries=$1 log=$2 i
+            for ((i = 0; i < tries; i++)); do
+              if $SSH_CMD true 2>/dev/null; then
+                return 0
+              fi
+              if grep -qaE "$FATAL_RE" "$log" 2>/dev/null; then
+                echo "::error::Fatal boot state detected in $log"
+                grep -aE "$FATAL_RE" "$log" | head -n 10 || true
+                return 2
+              fi
+              sleep 2
+            done
+            echo "::error::SSH never came up (see $log)"
+            return 1
+          }
+
+          # inspect_root <erofs-image-or-device> <label>
+          # Mounts a root image read-only and reports where ESP/by-uuid references come from.
+          inspect_root() {
+            local src=$1 label=$2
+            echo "---- [$label] root contents ----"
+            sudo mkdir -p /mnt/inspect
+            if sudo mount -t erofs -o loop,ro "$src" /mnt/inspect 2>/dev/null; then
+              echo "-- /etc/fstab --"
+              cat /mnt/inspect/etc/fstab 2>/dev/null || echo "(no fstab)"
+              echo "-- ESP / by-uuid references --"
+              sudo grep -rnE "CD4B-90CA|367C-F384|by-uuid" \
+                /mnt/inspect/etc /mnt/inspect/usr/lib/systemd/system \
+                /mnt/inspect/usr/lib/systemd/system-generators 2>/dev/null | head -n 50 || true
+              echo "-- /etc/systemd/system --"
+              ls -la /mnt/inspect/etc/systemd/system 2>/dev/null | head -n 40 || true
+              sudo umount /mnt/inspect
+            else
+              echo "(could not mount $src as erofs)"
+              file "$src" || true
+            fi
+          }
+
+          # inspect_disk <raw-disk> <label>
+          inspect_disk() {
+            local disk=$1 label=$2 loop p
+            echo "==== [$label] disk layout ===="
+            loop=$(sudo losetup -Pf --show "$disk")
+            sudo sfdisk -d "$loop" || true
+            for p in "${loop}"p*; do
+              echo "-- $p --"
+              sudo blkid "$p" || true
+            done
+            for p in "${loop}"p*; do
+              if [ "$(sudo blkid -s TYPE -o value "$p" 2>/dev/null)" = "erofs" ]; then
+                inspect_root "$p" "$label"
+                break
+              fi
+            done
+            sudo losetup -d "$loop"
+          }
+          EOF
 
       - name: Prepare SSH Keys, Signing Keys & Test Transfer URLs
         run: |
@@ -44,21 +113,51 @@ jobs:
           # Point sysupdate [Source] transfer definitions at the QEMU host HTTP server
           sed -i 's|^Path=https://.*|Path=http://10.0.2.2:8000/|' mkosi.extra/usr/lib/sysupdate.d/*.transfer
 
-          mkosi genkey
+          # Enable serial console logging for headless QEMU CI builds only
+          sed -i '/^KernelCommandLine=/a \    console=ttyS0,115200n8' mkosi.conf
 
       - name: Build v1.0.0 Base Image
         run: |
-          sudo mkosi --image-version=1.0.0 --kernel-command-line-extra="console=ttyS0,115200n8" --force build
+          set -euo pipefail
+          source /tmp/ci-lib.sh
+
+          sudo mkosi --image-version=1.0.0 --force build
           sudo chown -R "$USER:$USER" mkosi.output
           zstd -d mkosi.output/alma_1.0.0_x86-64.raw.zst -o ./disk-test.raw
+
+          {
+            inspect_disk ./disk-test.raw "v1.0.0"
+            echo "==== [v1.0.0] UKI ===="
+            ls -la mkosi.output/
+            ukify inspect mkosi.output/alma_1.0.0_x86-64.efi 2>&1 || true
+          } 2>&1 | tee /tmp/image-inspect-v100.txt
+
           # Expand raw disk by 6G so systemd-repart can grow Slot A, create empty Slot B, and format /var
           qemu-img resize -f raw ./disk-test.raw +6G
 
       - name: Build v1.0.1 Update Payload & Start HTTP Server
         run: |
+          set -euo pipefail
+          source /tmp/ci-lib.sh
+
           sudo rm -rf mkosi.output/*
-          sudo mkosi --image-version=1.0.1 --kernel-command-line-extra="console=ttyS0,115200n8" --force build
+          sudo mkosi --image-version=1.0.1 --force build
           sudo chown -R "$USER:$USER" mkosi.output
+
+          {
+            echo "==== [v1.0.1] build output ===="
+            ls -la mkosi.output/
+            ROOT101=$(find mkosi.output -maxdepth 1 -name 'alma_1.0.1_x86-64.root-*.raw.zst' ! -name '*verity*' | head -n 1)
+            if [ -n "$ROOT101" ]; then
+              zstd -dc "$ROOT101" > /tmp/root101.raw
+              inspect_root /tmp/root101.raw "v1.0.1"
+              rm -f /tmp/root101.raw
+            else
+              echo "(no non-verity root image found to inspect)"
+            fi
+            echo "==== [v1.0.1] UKI ===="
+            ukify inspect mkosi.output/alma_1.0.1_x86-64.efi 2>&1 || true
+          } 2>&1 | tee /tmp/image-inspect-v101.txt
 
           mkdir -p /tmp/update-srv
           cp mkosi.output/alma_1.0.1_x86-64.root-*.raw.zst /tmp/update-srv/
@@ -67,13 +166,17 @@ jobs:
           cd /tmp/update-srv
           sha256sum * > SHA256SUMS
           cat SHA256SUMS
-          python3 -m http.server 8000 --bind 0.0.0.0 &
-          echo "HTTP_PID=$!" >> $GITHUB_ENV
+          setsid nohup python3 -m http.server 8000 --bind 0.0.0.0 > /tmp/http-server.log 2>&1 &
+          echo "HTTP_PID=$!" >> "$GITHUB_ENV"
 
       - name: Boot v1.0.0 (UEFI), Verify systemd-repart & Run systemd-sysupdate
         run: |
+          set -euo pipefail
+          source /tmp/ci-lib.sh
+
           # Copy writable OVMF_VARS so UEFI boot entries persist across reboots
           cp /usr/share/OVMF/OVMF_VARS_4M.fd ./ovmf_vars.fd
+          : > /tmp/serial-boot1.log
 
           qemu-system-x86_64 \
             -enable-kvm -cpu host -m 2G -smp 2 \
@@ -81,22 +184,15 @@ jobs:
             -drive if=pflash,format=raw,file=./ovmf_vars.fd \
             -drive file=./disk-test.raw,format=raw,if=virtio \
             -net nic,model=virtio \
+            -device i6300esb -watchdog-action reset \
             -net user,hostfwd=tcp:127.0.0.1:2222-:22 \
-            -nographic -serial mon:stdio &
+            -display none -monitor none -serial file:/tmp/serial-boot1.log \
+            -no-reboot &
           QEMU_PID=$!
-
-          SSH_CMD="ssh -i /tmp/ci_id_ed25519 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=3 -p 2222 root@127.0.0.1"
+          trap 'kill $QEMU_PID 2>/dev/null || true' EXIT
 
           echo "Waiting for v1.0.0 guest SSH..."
-          CONNECTED=0
-          for i in {1..60}; do
-            if $SSH_CMD "true" 2>/dev/null; then
-              CONNECTED=1
-              break
-            fi
-            sleep 2
-          done
-          test "$CONNECTED" -eq 1
+          wait_ssh 60 /tmp/serial-boot1.log
 
           # 1. Verify systemd-repart.service succeeded on boot
           $SSH_CMD "systemctl status systemd-repart.service --no-pager"
@@ -111,6 +207,9 @@ jobs:
           $SSH_CMD 'mkdir -p /var/lib && echo "var-persisted-from-1.0.0" > /var/lib/persist-test'
           $SSH_CMD 'echo "etc-persisted-from-1.0.0" > /etc/persist-etc-test'
 
+          # Record how the ESP is mounted on the running v1.0.0 system (useful for debugging UUID mismatches)
+          $SSH_CMD 'findmnt /efi; blkid | grep -i vfat; cat /etc/fstab 2>/dev/null || true' | tee /tmp/guest-esp-v100.txt
+
           # 4. Verify systemd-sysupdate sees the empty slot and the remote v1.0.1 update
           $SSH_CMD "/usr/lib/systemd/systemd-sysupdate components"
           $SSH_CMD "/usr/lib/systemd/systemd-sysupdate list --verify=no"
@@ -122,32 +221,34 @@ jobs:
 
           # Power off cleanly so filesystems and EFI vars flush
           $SSH_CMD "systemctl poweroff" || true
-          wait $QEMU_PID || true
+          for i in {1..45}; do
+            kill -0 "$QEMU_PID" 2>/dev/null || break
+            sleep 2
+          done
+          wait "$QEMU_PID" || true
 
       - name: Boot Updated Slot, Verify Blessing & Persistence, and Test Automatic Rollback
         run: |
+          set -euo pipefail
+          source /tmp/ci-lib.sh
+
+          : > /tmp/serial-boot2.log
+
+          # No -no-reboot here: the rollback test relies on the guest rebooting itself.
           qemu-system-x86_64 \
             -enable-kvm -cpu host -m 2G -smp 2 \
             -drive if=pflash,format=raw,readonly=on,file=/usr/share/OVMF/OVMF_CODE_4M.fd \
             -drive if=pflash,format=raw,file=./ovmf_vars.fd \
             -drive file=./disk-test.raw,format=raw,if=virtio \
             -net nic,model=virtio \
+            -device i6300esb -watchdog-action reset \
             -net user,hostfwd=tcp:127.0.0.1:2222-:22 \
-            -nographic -serial mon:stdio &
+            -display none -monitor none -serial file:/tmp/serial-boot2.log &
           QEMU_PID=$!
-
-          SSH_CMD="ssh -i /tmp/ci_id_ed25519 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=3 -p 2222 root@127.0.0.1"
+          trap 'kill $QEMU_PID 2>/dev/null || true' EXIT
 
           echo "Waiting for v1.0.1 guest SSH..."
-          CONNECTED=0
-          for i in {1..60}; do
-            if $SSH_CMD "true" 2>/dev/null; then
-              CONNECTED=1
-              break
-            fi
-            sleep 2
-          done
-          test "$CONNECTED" -eq 1
+          wait_ssh 60 /tmp/serial-boot2.log
 
           $SSH_CMD "lsblk -o NAME,PARTLABEL,PARTUUID,MOUNTPOINTS,SIZE"
           BOOTED_VER=$($SSH_CMD ". /usr/lib/os-release && echo \$IMAGE_VERSION")
@@ -163,41 +264,68 @@ jobs:
           $SSH_CMD 'test "$(cat /var/lib/persist-test)" = "var-persisted-from-1.0.0"'
           $SSH_CMD 'test "$(cat /etc/persist-etc-test)" = "etc-persisted-from-1.0.0"'
 
-          # Verify systemd-bless-boot marks the new UKI as good and strips the +tries suffix
-          $SSH_CMD "systemctl start systemd-bless-boot.service"
-          $SSH_CMD "/usr/lib/systemd/systemd-bless-boot status | grep -qx good"
-          $SSH_CMD 'ESP_DIR=$(bootctl --print-esp-path) && ls -la "$ESP_DIR/EFI/Linux/" && test -f "$ESP_DIR/EFI/Linux/alma_1.0.1_x86-64.efi" && ! test -e "$ESP_DIR/EFI/Linux/alma_1.0.1_x86-64+3-0.efi"'
+          # Verify systemd-boot decremented +3-0 -> +2-1 and systemd-bless-boot marks it good
+          verify_bless_boot() {
+            $SSH_CMD '
+              set -euo pipefail
+              ESP_DIR=$(bootctl --print-esp-path)
+              BOOTCOUNT_VAR="/sys/firmware/efi/efivars/LoaderBootCountPath-4a67b082-0a4c-41cf-b6c7-440b29bb8c4f"
+              test -f "$BOOTCOUNT_VAR"
+              tr -d "\0" < "$BOOTCOUNT_VAR" | grep -qaF "alma_1.0.1_x86-64+2-1.efi"
+              BLESS_STATUS=$(/usr/lib/systemd/systemd-bless-boot status || true)
+              if [ "$BLESS_STATUS" != "good" ]; then
+                test -f "$ESP_DIR/EFI/Linux/alma_1.0.1_x86-64+2-1.efi"
+              fi
+              systemctl start systemd-bless-boot.service
+              /usr/lib/systemd/systemd-bless-boot status | grep -qx good
+              ls -la "$ESP_DIR/EFI/Linux/"
+              test -f "$ESP_DIR/EFI/Linux/alma_1.0.1_x86-64.efi"
+              ! find "$ESP_DIR/EFI/Linux/" -maxdepth 1 -name "alma_1.0.1_x86-64+*.efi" | grep -q .
+            '
+          }
 
+          if ! verify_bless_boot; then
+            echo "::group::bless-boot diagnostics"
+            $SSH_CMD '
+              systemctl status systemd-bless-boot.service --no-pager -l
+              journalctl -b -u systemd-bless-boot.service --no-pager
+              bootctl status --no-pager
+              ls -la /sys/firmware/efi/efivars | grep -iE "loader|bootcount" || true
+              cat /sys/firmware/efi/efivars/LoaderBootCountPath-* 2>/dev/null | tr -d '\0'; echo
+              findmnt /boot /efi || true
+              ls -la "$(bootctl --print-esp-path)/EFI/Linux/" || true
+              /usr/lib/systemd/systemd-bless-boot status || true
+            ' || true
+            echo "::endgroup::"
+            exit 1
+          fi
+              
           # Simulate a bad update with 1 try remaining that reboots before boot-complete.target
           $SSH_CMD 'ESP_DIR=$(bootctl --print-esp-path) && mv "$ESP_DIR/EFI/Linux/alma_1.0.1_x86-64.efi" "$ESP_DIR/EFI/Linux/alma_1.0.1_x86-64+1-0.efi"'
-          $SSH_CMD 'cat > /etc/systemd/system/simulate-bad-update.service <<'"'"'EOF'"'"'
+          $SSH_CMD 'set -euo pipefail
+          mkdir -p /etc/systemd/system/systemd-bless-boot.service.d
+          cat > /etc/systemd/system/systemd-bless-boot.service.d/simulate-bad-update.conf <<'"'"'EOF'"'"'
           [Unit]
-          Description=Simulate failing boot on v1.0.1 before boot-complete.target
-          DefaultDependencies=no
           ConditionOSRelease=IMAGE_VERSION=1.0.1
-          Before=boot-complete.target systemd-bless-boot.service multi-user.target sshd.service
+          Before=sshd.service multi-user.target
+          FailureAction=reboot-force
 
           [Service]
-          Type=oneshot
-          ExecStart=/usr/bin/systemctl --force --force reboot
+          ExecStart=
+          ExecStart=/usr/bin/false
           EOF
-          mkdir -p /etc/systemd/system/sysinit.target.wants
-          ln -sf ../simulate-bad-update.service /etc/systemd/system/sysinit.target.wants/simulate-bad-update.service
           sync'
 
           echo "Rebooting into simulated bad v1.0.1 (+1-0) to verify automatic fallback to v1.0.0..."
-          $SSH_CMD "systemctl reboot" || true
-          sleep 5
+          # Mark where the rollback boot output starts so failures can be located in the serial log
+          echo "=== CI: issuing reboot into simulated bad v1.0.1 ===" >> /tmp/serial-boot2.log
+          $SSH_CMD "touch /run/awaiting-rollback && systemctl reboot" || true
 
-          CONNECTED=0
-          for i in {1..75}; do
-            if $SSH_CMD "true" 2>/dev/null; then
-              CONNECTED=1
-              break
-            fi
-            sleep 2
+          for i in {1..30}; do
+            $SSH_CMD "test -f /run/awaiting-rollback" 2>/dev/null || break
+            sleep 1
           done
-          test "$CONNECTED" -eq 1
+          wait_ssh 75 /tmp/serial-boot2.log
 
           ROLLBACK_VER=$($SSH_CMD ". /usr/lib/os-release && echo \$IMAGE_VERSION")
           echo "Rolled-back Booted Version: $ROLLBACK_VER"
@@ -209,6 +337,44 @@ jobs:
           $SSH_CMD 'test "$(cat /var/lib/persist-test)" = "var-persisted-from-1.0.0"'
           $SSH_CMD 'test "$(cat /etc/persist-etc-test)" = "etc-persisted-from-1.0.0"'
 
+          # Clean up the simulated bad-update service from the persistent /etc overlay
+          $SSH_CMD "rm -f /etc/systemd/system/sysinit.target.wants/simulate-bad-update.service /etc/systemd/system/simulate-bad-update.service && systemctl daemon-reload"
+
           $SSH_CMD "systemctl poweroff" || true
-          wait $QEMU_PID || kill -9 $QEMU_PID || true
-          kill -9 $HTTP_PID || true
+          for i in {1..45}; do
+            kill -0 "$QEMU_PID" 2>/dev/null || break
+            sleep 2
+          done
+          wait "$QEMU_PID" || true
+
+      - name: Show serial logs on failure
+        if: failure()
+        run: |
+          for f in /tmp/serial-boot1.log /tmp/serial-boot2.log; do
+            echo "::group::tail of $f"
+            tail -n 300 "$f" 2>/dev/null || echo "(missing)"
+            echo "::endgroup::"
+          done
+          echo "::group::image inspection"
+          cat /tmp/image-inspect-v100.txt /tmp/image-inspect-v101.txt 2>/dev/null || echo "(missing)"
+          echo "::endgroup::"
+
+      - name: Upload debug artifacts
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: sysupdate-e2e-debug
+          if-no-files-found: ignore
+          path: |
+            /tmp/serial-boot1.log
+            /tmp/serial-boot2.log
+            /tmp/image-inspect-v100.txt
+            /tmp/image-inspect-v101.txt
+            /tmp/guest-esp-v100.txt
+            /tmp/http-server.log
+
+      - name: Cleanup background processes
+        if: always()
+        run: |
+          pkill -f qemu-system-x86_64 || true
+          if [ -n "${HTTP_PID:-}" ]; then kill "$HTTP_PID" 2>/dev/null || true; fi
