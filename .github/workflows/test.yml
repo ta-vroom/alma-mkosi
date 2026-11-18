@@ -261,18 +261,43 @@ jobs:
           $SSH_CMD 'test "$(cat /etc/persist-etc-test)" = "etc-persisted-from-1.0.0"'
 
           # Verify systemd-bless-boot marks the new UKI as good and strips the +tries suffix
-          $SSH_CMD "systemctl start systemd-bless-boot.service"
-          $SSH_CMD "/usr/lib/systemd/systemd-bless-boot status | grep -qx good"
-          $SSH_CMD 'ESP_DIR=$(bootctl --print-esp-path) && ls -la "$ESP_DIR/EFI/Linux/" && test -f "$ESP_DIR/EFI/Linux/alma_1.0.1_x86-64.efi" && ! test -e "$ESP_DIR/EFI/Linux/alma_1.0.1_x86-64+3-0.efi"'
+          verify_bless_boot() {
+            $SSH_CMD "systemctl start systemd-bless-boot.service" &&
+            $SSH_CMD "/usr/lib/systemd/systemd-bless-boot status | grep -qx good" &&
+            $SSH_CMD '
+              set -euo pipefail
+              ESP_DIR=$(bootctl --print-esp-path)
+              ls -la "$ESP_DIR/EFI/Linux/"
+              test -f "$ESP_DIR/EFI/Linux/alma_1.0.1_x86-64.efi"
+              ! find "$ESP_DIR/EFI/Linux/" -maxdepth 1 -name "alma_1.0.1_x86-64+*.efi" | grep -q .
+            '
+          }
+
+          if ! verify_bless_boot; then
+            echo "::group::bless-boot diagnostics"
+            $SSH_CMD '
+              systemctl status systemd-bless-boot.service --no-pager -l
+              journalctl -b -u systemd-bless-boot.service --no-pager
+              bootctl status --no-pager
+              ls -la /sys/firmware/efi/efivars | grep -iE "loader|bootcount" || true
+              findmnt /boot /efi || true
+              ls -la "$(bootctl --print-esp-path)/EFI/Linux/" || true
+              /usr/lib/systemd/systemd-bless-boot status || true
+            ' || true
+            echo "::endgroup::"
+            exit 1
+          fi
 
           # Simulate a bad update with 1 try remaining that reboots before boot-complete.target
           $SSH_CMD 'ESP_DIR=$(bootctl --print-esp-path) && mv "$ESP_DIR/EFI/Linux/alma_1.0.1_x86-64.efi" "$ESP_DIR/EFI/Linux/alma_1.0.1_x86-64+1-0.efi"'
-          $SSH_CMD 'cat > /etc/systemd/system/simulate-bad-update.service <<'"'"'EOF'"'"'
+          $SSH_CMD 'set -euo pipefail
+          cat > /etc/systemd/system/simulate-bad-update.service <<'"'"'EOF'"'"'
           [Unit]
           Description=Simulate failing boot on v1.0.1 before boot-complete.target
           DefaultDependencies=no
           ConditionOSRelease=IMAGE_VERSION=1.0.1
           Before=boot-complete.target systemd-bless-boot.service multi-user.target sshd.service
+          After=local-fs.target
 
           [Service]
           Type=oneshot
@@ -285,9 +310,12 @@ jobs:
           echo "Rebooting into simulated bad v1.0.1 (+1-0) to verify automatic fallback to v1.0.0..."
           # Mark where the rollback boot output starts so failures can be located in the serial log
           echo "=== CI: issuing reboot into simulated bad v1.0.1 ===" >> /tmp/serial-boot2.log
-          $SSH_CMD "systemctl reboot" || true
-          sleep 5
+          $SSH_CMD "touch /run/awaiting-rollback && systemctl reboot" || true
 
+          for i in {1..30}; do
+            $SSH_CMD "test -f /run/awaiting-rollback" 2>/dev/null || break
+            sleep 1
+          done
           wait_ssh 75 /tmp/serial-boot2.log
 
           ROLLBACK_VER=$($SSH_CMD ". /usr/lib/os-release && echo \$IMAGE_VERSION")
@@ -299,6 +327,9 @@ jobs:
           $SSH_CMD 'ESP_DIR=$(bootctl --print-esp-path) && ls -la "$ESP_DIR/EFI/Linux/" && test -f "$ESP_DIR/EFI/Linux/alma_1.0.1_x86-64+0-1.efi"'
           $SSH_CMD 'test "$(cat /var/lib/persist-test)" = "var-persisted-from-1.0.0"'
           $SSH_CMD 'test "$(cat /etc/persist-etc-test)" = "etc-persisted-from-1.0.0"'
+
+          # Clean up the simulated bad-update service from the persistent /etc overlay
+          $SSH_CMD "rm -f /etc/systemd/system/sysinit.target.wants/simulate-bad-update.service /etc/systemd/system/simulate-bad-update.service && systemctl daemon-reload"
 
           $SSH_CMD "systemctl poweroff" || true
           for i in {1..45}; do
