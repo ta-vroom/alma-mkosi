@@ -4,12 +4,23 @@ set -eu
 if mountpoint -q /sysroot/var; then
     upper=/sysroot/var/etc
     work=/sysroot/var/.etc-work
+    mkdir -p "$upper" "$work"
+
+    if [ ! -e /sysroot/var/.selinux-labeled ] \
+        && [ -x /sysroot/usr/sbin/setfiles ] \
+        && [ -f /sysroot/etc/selinux/targeted/contexts/files/file_contexts ]; then
+        : > /sysroot/var/.selinux-labeled
+        if ! chroot /sysroot /usr/sbin/setfiles -m -F \
+            /etc/selinux/targeted/contexts/files/file_contexts /var; then
+            rm -f /sysroot/var/.selinux-labeled
+            exit 1
+        fi
+    fi
 else
     upper=/run/etc-upper
     work=/run/etc-work
+    mkdir -p "$upper" "$work"
 fi
-
-mkdir -p "$upper" "$work"
 
 mount -t overlay overlay \
     -o "lowerdir=/sysroot/etc,upperdir=$upper,workdir=$work" \
