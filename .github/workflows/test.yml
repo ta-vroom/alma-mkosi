@@ -26,7 +26,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y qemu-system-x86 qemu-utils ovmf systemd-container \
             systemd-ukify sbsigntool socat openssh-client python3-pip systemd-boot \
-            systemd-repart python3-pefile binutils mtools erofs-utils xfsprogs zstd dnf
+            systemd-repart python3-pefile binutils mtools erofs-utils xfsprogs zstd dnf policycoreutils
 
           # Ensure KVM acceleration is accessible
           test -e /dev/kvm && sudo chmod 666 /dev/kvm || true
@@ -204,6 +204,7 @@ jobs:
           # 3. Verify persistent /var and /etc overlay are mounted and write test markers
           $SSH_CMD 'test "$(findmnt -n -o SOURCE /var)" = "$(blkid -t PARTLABEL=var -o device)"'
           $SSH_CMD 'test "$(findmnt -n -o FSTYPE /etc)" = "overlay"'
+          $SSH_CMD 'getenforce | grep -qx Enforcing'
           $SSH_CMD 'mkdir -p /var/lib && echo "var-persisted-from-1.0.0" > /var/lib/persist-test'
           $SSH_CMD 'echo "etc-persisted-from-1.0.0" > /etc/persist-etc-test'
 
@@ -261,6 +262,7 @@ jobs:
           # Verify persistent /var and /etc overlay survived the A -> B slot switch
           $SSH_CMD 'test "$(findmnt -n -o SOURCE /var)" = "$(blkid -t PARTLABEL=var -o device)"'
           $SSH_CMD 'test "$(findmnt -n -o FSTYPE /etc)" = "overlay"'
+          $SSH_CMD 'getenforce | grep -qx Enforcing'
           $SSH_CMD 'test "$(cat /var/lib/persist-test)" = "var-persisted-from-1.0.0"'
           $SSH_CMD 'test "$(cat /etc/persist-etc-test)" = "etc-persisted-from-1.0.0"'
 
