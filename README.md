@@ -12,14 +12,14 @@ An immutable, A/B-updatable Linux operating system image based on **AlmaLinux 10
 
 Iota builds a minimal, read-only Slot A image at build time and delegates Slot B and persistent storage creation to `systemd-repart` on first boot in the initrd.
 
-| The initrd can be further customized by editing the files within mkosi.images/initrd
+> The initrd can be further customized by editing the files within mkosi.images/initrd
 
 **Build-time partitions (`mkosi.repart/`):**
 - **ESP (`00-esp.conf`)** — `vfat`, `512M`–`1G`, populated with `systemd-boot` and the UKI.
 - **Root Verity (`11-root-verity.conf`)** — `root-verity` (`%M_%A_verity`), minimized hash tree for Slot A.
 - **Root (`12-root.conf`)** — `erofs` (LZ4HC compressed, read-only, `%M_%A`), minimized and bound to `root-verity` via `VerityMatchKey=root`.
 
-| In my testing Fedora and Alma's kernels did not have zstd compression for erofs enabled.
+> In my testing Fedora and Alma's kernels did not have zstd compression for erofs enabled.
 
 **First-boot initrd expansion (`mkosi.images/initrd/mkosi.extra/usr/lib/repart.d/` & `mkosi.extra/usr/lib/repart.d/`):**
 On first boot, `systemd-repart.service` (ordered after `sysroot.mount` with `TMPDIR=/tmp`) expands the partition table into available disk space:
