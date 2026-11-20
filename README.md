@@ -2,7 +2,7 @@
 
 An immutable, A/B-updatable Linux operating system image based on **AlmaLinux 10**, built with [`mkosi`](https://github.com/systemd/mkosi), `systemd-repart`, `systemd-sysupdate`, `systemd-boot` Unified Kernel Images (UKIs), `erofs` + `dm-verity`, and **SELinux in Enforcing mode**.
 
-> Originally forked from `castrojo/ubuntu-mkosi` as a sandbox for testing `mkosi`, A/B image layouts, and update hosting; since redesigned around AlmaLinux 10, CentOS Hyperscale SIG systemd packages, and patterns from `systemd/particleos`.
+> Originally forked from `castrojo/ubuntu-mkosi` as a sandbox for testing `mkosi`, A/B image layouts, and update hosting via Github releases; since redesigned around AlmaLinux 10, with an updated systemd from CentOS Hyperscale SIG, and patterns from `systemd/particleos`.
 
 ---
 
@@ -12,10 +12,14 @@ An immutable, A/B-updatable Linux operating system image based on **AlmaLinux 10
 
 Iota builds a minimal, read-only Slot A image at build time and delegates Slot B and persistent storage creation to `systemd-repart` on first boot in the initrd.
 
+| The initrd can be further customized by editing the files within mkosi.images/initrd
+
 **Build-time partitions (`mkosi.repart/`):**
 - **ESP (`00-esp.conf`)** — `vfat`, `512M`–`1G`, populated with `systemd-boot` and the UKI.
 - **Root Verity (`11-root-verity.conf`)** — `root-verity` (`%M_%A_verity`), minimized hash tree for Slot A.
 - **Root (`12-root.conf`)** — `erofs` (LZ4HC compressed, read-only, `%M_%A`), minimized and bound to `root-verity` via `VerityMatchKey=root`.
+
+| In my testing Fedora and Alma's kernels did not have zstd compression for erofs enabled.
 
 **First-boot initrd expansion (`mkosi.images/initrd/mkosi.extra/usr/lib/repart.d/` & `mkosi.extra/usr/lib/repart.d/`):**
 On first boot, `systemd-repart.service` (ordered after `sysroot.mount` with `TMPDIR=/tmp`) expands the partition table into available disk space:
