@@ -44,19 +44,27 @@ ln -sf var/opt /opt
 ln -sf var/srv /srv
 
 (
+    cd /usr/share/selinux/iota
+    checkmodule -M -m -o iota_bless.mod iota_bless.te
+    semodule_package -o iota_bless.pp -m iota_bless.mod
+    semodule -n -i iota_bless.pp
+    rm -f iota_bless.mod
+)
+
+(
     . /usr/lib/os-release
     cat >/usr/lib/os-release <<EOF
 NAME="Iota ($NAME Flavour)"
 ID="$ID"
-ID_LIKE="Iota-$ID"
+ID_LIKE="rhel centos"
 PRETTY_NAME="Iota/$NAME $VERSION"
 FANCY_NAME="\033[0;38:2:252:186:3;1;49m⸭\033[0;38:2:252:186:3;49m Iota/$NAME Flavour $VERSION\033[0m"
 VERSION="$VERSION"
 VERSION_ID="$VERSION_ID"
 ANSI_COLOR="38:2:252:186:3;1;49"
 ANSI_COLOR_REVERSE="48;2;252;186;3;1;30"
-DEFAULT_HOSTNAME="particle-????-????"
-HOME_URL="https://github.com/systemd/Iota/"
+DEFAULT_HOSTNAME="iota-????-????"
+HOME_URL="https://github.com/ta-vroom/Iota/"
 EOF
 
     cat >/usr/lib/issue <<EOF

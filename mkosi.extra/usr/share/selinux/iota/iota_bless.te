@@ -1,0 +1,11 @@
+module iota_bless 1.0;
+
+require {
+    type init_t;
+    type dosfs_t;
+    class file { getattr setattr read write open rename unlink };
+    class dir  { getattr search read open write add_name remove_name };
+}
+
+allow init_t dosfs_t:file { getattr setattr read write open rename unlink };
+allow init_t dosfs_t:dir  { getattr search read open write add_name remove_name };
