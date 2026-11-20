@@ -9,6 +9,12 @@ on:
   workflow_dispatch:
   push:
     branches: [ main ]
+  workflow_call:
+    inputs:
+      release_notes:
+        description: "Release notes listing updated packages"
+        required: false
+        type: string
 
 jobs:
   test:
@@ -72,7 +78,7 @@ jobs:
           sudo rm -rf /var/lib/apt/lists/*
           sudo apt-get update
           
-          PACKAGES=(systemd-boot systemd-repart systemd-ukify python3-pefile binutils mtools erofs-utils xfsprogs)
+          PACKAGES=(systemd-boot systemd-repart systemd-ukify python3-pefile binutils mtools erofs-utils xfsprogs policycoreutils)
           
           sudo apt-get install -d -y "${PACKAGES[@]}"
           sudo apt-get install -y "${PACKAGES[@]}"
@@ -120,6 +126,7 @@ jobs:
         with:
           tag_name: ${{ env.RELEASE_TAG }}
           name: "${{ env.RELEASE_TAG }}"
+          body: ${{ inputs.release_notes }}
           prerelease: false
           files: |
             ${{ env.UKI_FORMAT }}.efi
