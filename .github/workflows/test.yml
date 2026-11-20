@@ -123,13 +123,13 @@ jobs:
 
           sudo mkosi --image-version=1.0.0 --force build
           sudo chown -R "$USER:$USER" mkosi.output
-          zstd -d mkosi.output/alma_1.0.0_x86-64.raw.zst -o ./disk-test.raw
+          zstd -d mkosi.output/iota_1.0.0_x86-64.raw.zst -o ./disk-test.raw
 
           {
             inspect_disk ./disk-test.raw "v1.0.0"
             echo "==== [v1.0.0] UKI ===="
             ls -la mkosi.output/
-            ukify inspect mkosi.output/alma_1.0.0_x86-64.efi 2>&1 || true
+            ukify inspect mkosi.output/iota_1.0.0_x86-64.efi 2>&1 || true
           } 2>&1 | tee /tmp/image-inspect-v100.txt
 
           # Expand raw disk by 6G so systemd-repart can grow Slot A, create empty Slot B, and format /var
@@ -147,7 +147,7 @@ jobs:
           {
             echo "==== [v1.0.1] build output ===="
             ls -la mkosi.output/
-            ROOT101=$(find mkosi.output -maxdepth 1 -name 'alma_1.0.1_x86-64.root-*.raw.zst' ! -name '*verity*' | head -n 1)
+            ROOT101=$(find mkosi.output -maxdepth 1 -name 'iota_1.0.1_x86-64.root-*.raw.zst' ! -name '*verity*' | head -n 1)
             if [ -n "$ROOT101" ]; then
               zstd -dc "$ROOT101" > /tmp/root101.raw
               inspect_root /tmp/root101.raw "v1.0.1"
@@ -156,12 +156,12 @@ jobs:
               echo "(no non-verity root image found to inspect)"
             fi
             echo "==== [v1.0.1] UKI ===="
-            ukify inspect mkosi.output/alma_1.0.1_x86-64.efi 2>&1 || true
+            ukify inspect mkosi.output/iota_1.0.1_x86-64.efi 2>&1 || true
           } 2>&1 | tee /tmp/image-inspect-v101.txt
 
           mkdir -p /tmp/update-srv
-          cp mkosi.output/alma_1.0.1_x86-64.root-*.raw.zst /tmp/update-srv/
-          cp mkosi.output/alma_1.0.1_x86-64.efi /tmp/update-srv/
+          cp mkosi.output/iota_1.0.1_x86-64.root-*.raw.zst /tmp/update-srv/
+          cp mkosi.output/iota_1.0.1_x86-64.efi /tmp/update-srv/
 
           cd /tmp/update-srv
           sha256sum * > SHA256SUMS
@@ -215,10 +215,10 @@ jobs:
           $SSH_CMD "/usr/lib/systemd/systemd-sysupdate components"
           $SSH_CMD "/usr/lib/systemd/systemd-sysupdate list --verify=no"
 
-          # 5. Run the update and verify '_empty' became 'alma_1.0.1' and boot-counted UKI exists
+          # 5. Run the update and verify '_empty' became 'iota_1.0.1' and boot-counted UKI exists
           $SSH_CMD "/usr/lib/systemd/systemd-sysupdate update --verify=no"
           $SSH_CMD "lsblk -o NAME,PARTLABEL,PARTUUID,SIZE"
-          $SSH_CMD 'ESP_DIR=$(bootctl --print-esp-path) && ls -la "$ESP_DIR/EFI/Linux/" && test -f "$ESP_DIR/EFI/Linux/alma_1.0.1_x86-64+3-0.efi"'
+          $SSH_CMD 'ESP_DIR=$(bootctl --print-esp-path) && ls -la "$ESP_DIR/EFI/Linux/" && test -f "$ESP_DIR/EFI/Linux/iota_1.0.1_x86-64+3-0.efi"'
 
           # Power off cleanly so filesystems and EFI vars flush
           $SSH_CMD "systemctl poweroff" || true
@@ -256,8 +256,8 @@ jobs:
           echo "Booted Version: $BOOTED_VER"
           test "$BOOTED_VER" = "1.0.1"
 
-          # Verify /dev/mapper/root is backed by the alma_1.0.1 partition (Slot B)
-          $SSH_CMD "lsblk -s -no PARTLABEL /dev/mapper/root | grep -qx alma_1.0.1"
+          # Verify /dev/mapper/root is backed by the iota_1.0.1 partition (Slot B)
+          $SSH_CMD "lsblk -s -no PARTLABEL /dev/mapper/root | grep -qx iota_1.0.1"
 
           # Verify persistent /var and /etc overlay survived the A -> B slot switch
           $SSH_CMD 'test "$(findmnt -n -o SOURCE /var)" = "$(blkid -t PARTLABEL=var -o device)"'
@@ -273,16 +273,16 @@ jobs:
               ESP_DIR=$(bootctl --print-esp-path)
               BOOTCOUNT_VAR="/sys/firmware/efi/efivars/LoaderBootCountPath-4a67b082-0a4c-41cf-b6c7-440b29bb8c4f"
               test -f "$BOOTCOUNT_VAR"
-              tr -d "\0" < "$BOOTCOUNT_VAR" | grep -qaF "alma_1.0.1_x86-64+2-1.efi"
+              tr -d "\0" < "$BOOTCOUNT_VAR" | grep -qaF "iota_1.0.1_x86-64+2-1.efi"
               BLESS_STATUS=$(/usr/lib/systemd/systemd-bless-boot status || true)
               if [ "$BLESS_STATUS" != "good" ]; then
-                test -f "$ESP_DIR/EFI/Linux/alma_1.0.1_x86-64+2-1.efi"
+                test -f "$ESP_DIR/EFI/Linux/iota_1.0.1_x86-64+2-1.efi"
               fi
               systemctl start systemd-bless-boot.service
               /usr/lib/systemd/systemd-bless-boot status | grep -qx good
               ls -la "$ESP_DIR/EFI/Linux/"
-              test -f "$ESP_DIR/EFI/Linux/alma_1.0.1_x86-64.efi"
-              ! find "$ESP_DIR/EFI/Linux/" -maxdepth 1 -name "alma_1.0.1_x86-64+*.efi" | grep -q .
+              test -f "$ESP_DIR/EFI/Linux/iota_1.0.1_x86-64.efi"
+              ! find "$ESP_DIR/EFI/Linux/" -maxdepth 1 -name "iota_1.0.1_x86-64+*.efi" | grep -q .
             '
           }
 
@@ -304,7 +304,7 @@ jobs:
           fi
               
           # Simulate a bad update with 1 try remaining that reboots before boot-complete.target
-          $SSH_CMD 'ESP_DIR=$(bootctl --print-esp-path) && mv "$ESP_DIR/EFI/Linux/alma_1.0.1_x86-64.efi" "$ESP_DIR/EFI/Linux/alma_1.0.1_x86-64+1-0.efi"'
+          $SSH_CMD 'ESP_DIR=$(bootctl --print-esp-path) && mv "$ESP_DIR/EFI/Linux/iota_1.0.1_x86-64.efi" "$ESP_DIR/EFI/Linux/iota_1.0.1_x86-64+1-0.efi"'
           $SSH_CMD 'set -euo pipefail
           mkdir -p /etc/systemd/system/systemd-bless-boot.service.d
           cat > /etc/systemd/system/systemd-bless-boot.service.d/simulate-bad-update.conf <<'"'"'EOF'"'"'
@@ -334,9 +334,9 @@ jobs:
           echo "Rolled-back Booted Version: $ROLLBACK_VER"
           test "$ROLLBACK_VER" = "1.0.0"
 
-          # Verify fallback booted Slot A (alma_1.0.0), v1.0.1 exhausted tries (+0-1), and state stayed intact
-          $SSH_CMD "lsblk -s -no PARTLABEL /dev/mapper/root | grep -qx alma_1.0.0"
-          $SSH_CMD 'ESP_DIR=$(bootctl --print-esp-path) && ls -la "$ESP_DIR/EFI/Linux/" && test -f "$ESP_DIR/EFI/Linux/alma_1.0.1_x86-64+0-1.efi"'
+          # Verify fallback booted Slot A (iota_1.0.0), v1.0.1 exhausted tries (+0-1), and state stayed intact
+          $SSH_CMD "lsblk -s -no PARTLABEL /dev/mapper/root | grep -qx iota_1.0.0"
+          $SSH_CMD 'ESP_DIR=$(bootctl --print-esp-path) && ls -la "$ESP_DIR/EFI/Linux/" && test -f "$ESP_DIR/EFI/Linux/iota_1.0.1_x86-64+0-1.efi"'
           $SSH_CMD 'test "$(cat /var/lib/persist-test)" = "var-persisted-from-1.0.0"'
           $SSH_CMD 'test "$(cat /etc/persist-etc-test)" = "etc-persisted-from-1.0.0"'
 
