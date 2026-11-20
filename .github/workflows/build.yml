@@ -96,12 +96,7 @@ jobs:
       - name: Build Images
         run: |
           sudo mkosi build --force
-
-      - name: List files
-        if: always()
-        run: |
-          ls -la ${{ env.OUTPUT_DIR }}
-          
+         
       - name: Sign and generate SHA256SUMS
         env:
           GPG_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
