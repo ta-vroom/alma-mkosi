@@ -3,7 +3,7 @@ ProtectVersion=%A
 
 [Source]
 Type=url-file
-Path=https://github.com/ta-vroom/alma-mkosi/releases/latest/download/
+Path=https://github.com/ta-vroom/iota/releases/latest/download/
 MatchPattern=%M_@v_%a.root-%a-verity.@u.raw.zst
 
 [Target]
