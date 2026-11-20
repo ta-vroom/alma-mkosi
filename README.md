@@ -1,4 +1,4 @@
-# alma-mkosi -- Adventures with creating immutable A/B systems with sysupdate and mkosi
+# ι Iota -- Adventures with creating immutable A/B systems with sysupdate and mkosi
 
 Originally forked from castrojo/ubuntu-mkosi using the mkosi config there as a scaffolding on which to test configurations and different ways to host the final images. 
 
