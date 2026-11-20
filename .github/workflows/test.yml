@@ -295,7 +295,8 @@ jobs:
               ls -la /sys/firmware/efi/efivars | grep -iE "loader|bootcount" || true
               cat /sys/firmware/efi/efivars/LoaderBootCountPath-* 2>/dev/null | tr -d '\0'; echo
               findmnt /boot /efi || true
-              ls -la "$(bootctl --print-esp-path)/EFI/Linux/" || true
+              ls -ladZ "$(bootctl --print-esp-path)/EFI/Linux/" || true
+              ausearch -m avc -ts boot 2>/dev/null || journalctl -b | grep -i avc || true
               /usr/lib/systemd/systemd-bless-boot status || true
             ' || true
             echo "::endgroup::"
