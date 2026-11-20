@@ -33,7 +33,7 @@ ln -sf /run/systemd/resolve/stub-resolv.conf /etc/resolv.conf
 rm -rf /afs 
 
 # Delete directories in order to create symlinks
-rm -rf /mnt /opt /srv /root
+rm -rf /mnt /opt /home /srv /root
 
 ln -sf var/home /home
 ln -sf var/roothome /root
