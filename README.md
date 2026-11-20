@@ -1,477 +1,196 @@
-# ι Iota -- Adventures with creating immutable A/B systems with sysupdate and mkosi
+# ι Iota
 
-Originally forked from castrojo/ubuntu-mkosi using the mkosi config there as a scaffolding on which to test configurations and different ways to host the final images. 
+An immutable, A/B-updatable Linux operating system image based on **AlmaLinux 10**, built with [`mkosi`](https://github.com/systemd/mkosi), `systemd-repart`, `systemd-sysupdate`, `systemd-boot` Unified Kernel Images (UKIs), `erofs` + `dm-verity`, and **SELinux in Enforcing mode**.
 
-Practical examples and configurations for building Ubuntu images using [mkosi](https://github.com/systemd/mkosi), a tool for generating bespoke OS images. mkosi is a fancy wrapper around `apt` (and `dnf`, `pacman`, `zypper`) that generates customized disk images with a number of bells and whistles.
+> Originally forked from `castrojo/ubuntu-mkosi` as a sandbox for testing `mkosi`, A/B image layouts, and update hosting; since redesigned around AlmaLinux 10, CentOS Hyperscale SIG systemd packages, and patterns from `systemd/particleos`.
 
-This repository is designed to help you get started building Ubuntu images with mkosi through working examples you can use directly or adapt for your own needs.
+---
 
-## What is mkosi?
+## Architecture & Key Features
 
-**mkosi** (*Make Operating System Image*) generates OS images by:
+### 1. Partition Layout & First-Boot Repartitioning
 
-1. Installing distribution packages into a fresh OS tree (using `apt` for Ubuntu)
-2. Packaging that tree into various output formats (disk images, directories, tarballs, etc.)
-3. Optionally booting the result in `qemu` or `systemd-nspawn`
+Iota builds a minimal, read-only Slot A image at build time and delegates Slot B and persistent storage creation to `systemd-repart` on first boot in the initrd.
 
-Supported output formats include:
+**Build-time partitions (`mkosi.repart/`):**
+- **ESP (`00-esp.conf`)** — `vfat`, `512M`–`1G`, populated with `systemd-boot` and the UKI.
+- **Root Verity (`11-root-verity.conf`)** — `root-verity` (`%M_%A_verity`), minimized hash tree for Slot A.
+- **Root (`12-root.conf`)** — `erofs` (LZ4HC compressed, read-only, `%M_%A`), minimized and bound to `root-verity` via `VerityMatchKey=root`.
 
-| Format | Description |
-|--------|-------------|
-| `directory` | Plain directory containing the OS tree |
-| `disk` | GPT disk image built with `systemd-repart` |
-| `tar` | Tar archive of the OS tree |
-| `cpio` | CPIO archive (for initramfs images) |
-| `uki` | Unified Kernel Image |
-| `sysext` | System extension image |
+**First-boot initrd expansion (`mkosi.images/initrd/mkosi.extra/usr/lib/repart.d/` & `mkosi.extra/usr/lib/repart.d/`):**
+On first boot, `systemd-repart.service` (ordered after `sysroot.mount` with `TMPDIR=/tmp`) expands the partition table into available disk space:
+- Keeps Slot A (`00-esp.conf`, `11-root-verity.conf`, `12-root.conf` at `2G`).
+- Creates empty Slot B partitions labeled `_empty`:
+  - `21-root-verity.conf` (`64M`, `root-verity`)
+  - `22-root.conf` (`2G`, `root`)
+- Creates and formats persistent `/var` (`50-var.conf`, XFS, `Label=var`, `SizeMinBytes=300M`, `GrowFileSystem=yes`) with `/home`, `/etc`, `/.etc-work`, `/opt`, `/roothome`, `/mnt`, and `/srv`.
 
-## Prerequisites
+### 2. Immutable Root & Persistent State
 
-### Install mkosi
+- **Read-only `/`:** `/` is mounted from the `dm-verity` protected EROFS image (`/dev/mapper/root`).
+- **Persistent `/var`:** Mounted in the initrd (`sysroot-var.mount`) and post-switch-root (`var.mount`) from `/dev/disk/by-partlabel/var`.
+- **Writable `/etc` overlay:** `sysroot-etc-overlay.service` runs `/usr/libexec/mount-etc-overlay` in the initrd, mounting an OverlayFS over `/sysroot/etc` using `/sysroot/var/etc` as the upper directory and `/sysroot/var/.etc-work` as the work directory (falling back to `/run/etc-*` if `/sysroot/var` is absent).
+- **Persistent top-level directories:** `/home`, `/root`, `/mnt`, `/opt`, and `/srv` are symlinked into `var/*` (`var/home`, `var/roothome`, `var/mnt`, `var/opt`, `var/srv`) and initialized via `usr/lib/tmpfiles.d/50-var-dirs.conf`.
+- **Stateless PAM stack:** `/etc/pam.d` is moved to `/usr/lib/pam.d` during image build, with obsolete `pam_shells.so` and `pam_securetty.so` lines removed.
 
-The recommended way to install mkosi is via `pipx` from git to get the latest version:
+### 3. Atomic A/B Updates & Automatic Rollback
 
-```bash
-# Install pipx if you don't have it
-brew install pipx
-pipx ensurepath
+`mkosi.conf` produces split artifacts (`SplitArtifacts=uki,partitions`):
+- Full compressed disk image: `iota_<version>_<arch>.raw.zst`
+- Unified Kernel Image (with embedded initrd): `iota_<version>_<arch>.efi`
+- Split verity-linked root & hash partitions: `iota_<version>_<arch>.root-<arch>.<uuid>.raw.zst` and `iota_<version>_<arch>.root-<arch>-verity.<uuid>.raw.zst`
 
-# Install mkosi from git (latest development version)
-pipx install git+https://github.com/systemd/mkosi.git
+Updates are managed by `systemd-sysupdate` using three transfer definitions in `mkosi.extra/usr/lib/sysupdate.d/`:
+- `00-uki.transfer` — installs the UKI to `/EFI/Linux` on the ESP with `TriesLeft=3`, `TriesDone=0`, and `InstancesMax=2`.
+- `10-root-verity.transfer` — writes the verity hash image to the spare `root-verity` slot (`%M_@v_verity`).
+- `11-root.transfer` — writes the root EROFS image to the spare `root` slot (`%M_@v`).
 
-# Verify installation
-mkosi --version
-```
+All transfers set `ProtectVersion=%A` to prevent overwriting the currently booted version. On reboot:
+1. `systemd-boot` selects the new `+3-0` UKI and decrements the try counter (`+2-1`).
+2. Once the boot succeeds (`boot-complete.target`), `systemd-bless-boot.service` marks the entry good and strips the `+tries` suffix.
+3. If the new version fails to complete boot and exhausts its tries (`+0-*`), `systemd-boot` automatically falls back to the previous working slot.
 
-You can also install mkosi from your distribution's package manager, but make sure it's **v16 or newer** (`mkosi --version` to check). If your distro packages an older version, use the `pipx` method above.
+### 4. Security & Runtime Defaults
 
-### Host Requirements
+- **SELinux Enforcing:** `lsm=selinux` on the kernel command line, `SELINUX=enforcing` (`targeted` policy) in `/etc/selinux/config`, build-time labeling via `SELinuxRelabel=yes`, and first-boot `/var` labeling in `/usr/libexec/mount-etc-overlay` via `setfiles`.
+- **Custom `iota_bless` SELinux module (`mkosi.extra/usr/share/selinux/iota/iota_bless.te`):** Compiled and installed at image build time (`checkmodule`, `semodule_package`, `semodule -n -i`) so `systemd-bless-boot` (`init_t`) can read, write, rename, and unlink UKI files on the `dosfs_t` ESP under Enforcing mode.
+- **Minimal attack surface:** Package managers (`dnf`, `dnf-data`, `dnf-plugins-core`, `yum`, `dracut`) are removed from the runtime image (`RemovePackages=`).
+- **Base services & tools:** `systemd-networkd`, `systemd-resolved`, `systemd-timesyncd`, socket-activated `sshd.socket`, `firewalld`, `podman`, `wireguard-tools`, `fish`, `vim` (`EDITOR`/`VISUAL`), and `bat` (`PAGER`).
+- **Repositories:** AlmaLinux 10 + EPEL + CentOS Stream Hyperscale SIG `systemd` repo (`mkosi.sandbox/etc/yum.repos.d/centos-hyperscale-systemd.repo`).
 
-mkosi needs `bubblewrap` for sandboxing. Install it on your host:
-
-```bash
-# Fedora / CentOS / RHEL
-sudo dnf install bubblewrap
-
-# Debian / Ubuntu
-sudo apt install bubblewrap
-
-# Arch Linux
-sudo pacman -S bubblewrap
-```
-
-### Building Ubuntu Images from a Non-Ubuntu Host
-
-mkosi can cross-build Ubuntu images from any Linux distribution. If your host doesn't have `apt` installed (e.g., you're on Fedora, Arch, or CentOS), mkosi will need the `ubuntu-keyring` package or you can enable `RepositoryKeyFetch=yes` in your config.
-
-On RPM-based hosts, the simplest approach is to let mkosi handle everything:
-
-```ini
-[Distribution]
-Distribution=ubuntu
-Release=noble
-```
-
-mkosi will automatically fetch Ubuntu's GPG keys when needed. If you run into key issues, install the keyring package for your host distro (e.g., `distribution-gpg-keys` on Fedora).
-
-### Unprivileged User Namespaces (Ubuntu Hosts Only)
-
-If you're running mkosi **on** an Ubuntu host (23.10+), you may need to enable unprivileged user namespaces:
-
-```bash
-sudo sysctl -w kernel.apparmor_restrict_unprivileged_unconfined=0
-sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
-```
-
-To persist across reboots, create `/etc/sysctl.d/unprivileged-userns.conf`:
-
-```conf
-kernel.apparmor_restrict_unprivileged_unconfined=0
-kernel.apparmor_restrict_unprivileged_userns=0
-```
-
-## Quick Start
-
-Clone this repository and build a basic Ubuntu Noble image:
-
-```bash
-git clone https://github.com/castrojo/ubuntu-mkosi.git
-cd ubuntu-mkosi
-
-# Build the default image (directory format)
-mkosi
-
-# Drop into a shell inside the image
-mkosi shell
-
-# Or boot the image in a systemd-nspawn container
-mkosi boot
-```
-
-To rebuild after changes, add `-f` to force a rebuild:
-
-```bash
-mkosi -f
-```
+---
 
 ## Repository Structure
 
+```text
+.
+├── mkosi.conf                          # Main AlmaLinux 10 + Iota image definition
+├── mkosi.postinst.chroot               # PAM cleanup, GPG trust, symlinks, iota_bless SELinux module, os-release/issue
+├── mkosi.repart/                       # Build-time disk image partition definitions (ESP, root-verity, root)
+├── mkosi.sandbox/                      # Sandbox repo & GPG key for CentOS Hyperscale SIG systemd
+├── mkosi.extra/                        # Files injected into the root image
+│   ├── efi/loader/loader.conf          # systemd-boot loader config
+│   ├── etc/
+│   │   ├── kernel/tries                # Initial boot-count tries (3)
+│   │   ├── profile.d/                  # Default EDITOR=vim, PAGER=bat
+│   │   ├── selinux/config              # SELINUX=enforcing, SELINUXTYPE=targeted
+│   │   └── systemd/import-pubring.gpg  # sysupdate verification keyring
+│   └── usr/
+│       ├── lib/
+│       │   ├── repart.d/               # Runtime partition definitions (Slot A, _empty Slot B, /var)
+│       │   ├── systemd/                # var.mount & service presets (networkd, sshd.socket, bless-boot)
+│       │   ├── sysupdate.d/            # Transfer definitions for UKI, root-verity, and root
+│       │   └── tmpfiles.d/             # Persistent /var directory layout
+│       └── share/
+│           ├── keyrings/               # sysupdate release GPG keyring
+│           └── selinux/iota/           # iota_bless.te SELinux module source
+├── mkosi.images/
+│   └── initrd/                         # Dedicated CPIO initrd image definition
+│       ├── mkosi.conf                  # Initrd packages (systemd, cryptsetup, veritysetup, xfsprogs, etc.)
+│       ├── mkosi.postinst.chroot       # Enables sysroot-var.mount and sysroot-etc-overlay.service
+│       ├── mkosi.finalize              # Strips caches/docs from initrd
+│       └── mkosi.extra/                # Initrd repart.d/, mount-etc-overlay, systemd-repart override
+├── mkosi.profiles/                     # Inherited upstream mkosi profile drop-ins (not enabled by default)
+└── .github/workflows/
+    ├── test.yml                        # Full QEMU/OVMF E2E test (repart, sysupdate A->B, bless-boot, rollback)
+    ├── build.yml                       # Runs tests, builds signed artifacts, publishes GitHub Release
+    └── shell.yml                       # Checks latest release RPM DB for upstream updates & triggers build
 ```
-ubuntu-mkosi/
-├── mkosi.conf                    # Base Ubuntu Noble configuration
-├── mkosi.conf.d/
-│   └── 10-ubuntu-repos.conf     # Enables universe repository
-├── mkosi.profiles/
-│   ├── minimal/                 # Minimal server profile
-│   ├── desktop/                 # GNOME desktop profile
-│   └── bootable/                # Bootable GPT disk image profile
-├── mkosi.extra/
-│   └── etc/motd                 # Custom MOTD injected into images
-├── examples/
-│   ├── 01-minimal-server/       # Simplest Ubuntu image
-│   ├── 02-bootable-disk/        # Bootable GPT disk image
-│   ├── 03-container/            # Container-optimized image
-│   ├── 04-custom-packages/      # Web server stack with extra repos
-│   ├── 05-development/          # Dev image with build scripts
-│   ├── 06-sysext/               # System extension image
-│   ├── 07-extra-files/          # Custom config files via mkosi.extra
-│   └── 08-multi-release/        # Multiple Ubuntu releases via profiles
-├── AGENTS.md                    # Instructions for AI agents
-└── README.md                    # This file
-```
 
-## Using Profiles
+---
 
-This repository includes three profiles that customize the base configuration:
+## Building & Booting Locally
 
-### Minimal Server
+### Prerequisites
 
-A stripped-down server image with SSH:
+Install `mkosi` (CI uses `systemd/mkosi@v27`) along with virtualization, partitioning, filesystem, and SELinux tools on the build host:
+
+- `mkosi` and `bubblewrap`
+- `systemd-boot`, `systemd-repart`, `systemd-ukify`
+- `erofs-utils`, `xfsprogs`, `zstd`, `mtools`, `binutils`
+- `policycoreutils`, `python3-pefile`, `dnf`
+- `qemu-system-x86`, `qemu-utils`, `ovmf` (for local VM testing)
+
+### Build the Image
+
+Inspect the resolved configuration:
 
 ```bash
-mkosi --profile minimal
-mkosi --profile minimal shell
+mkosi summary
 ```
 
-### Desktop (GNOME)
-
-Full Ubuntu desktop with GNOME:
+Build the initrd and main disk image (`RootPassword=root` is set in `mkosi.conf` for local testing):
 
 ```bash
-mkosi --profile desktop
+sudo mkosi --image-version=1.0.0 --force build
 ```
 
-### Bootable Disk Image
+Build artifacts are written to `mkosi.output/`, including:
+- `iota_1.0.0_x86-64.raw.zst` (compressed GPT disk image)
+- `iota_1.0.0_x86-64.efi` (Unified Kernel Image)
+- `iota_1.0.0_x86-64.root-x86-64.<uuid>.raw.zst` and `iota_1.0.0_x86-64.root-x86-64-verity.<uuid>.raw.zst`
 
-A GPT disk image you can boot in qemu or write to a USB drive:
+### Boot in QEMU (UEFI)
+
+Decompress the disk image and add free space (`+6G` or more) so `systemd-repart` can create the `_empty` Slot B partitions and the XFS `/var` partition on first boot:
 
 ```bash
-# Build the disk image
-mkosi --profile bootable
-
-# Boot in qemu
-mkosi --profile bootable vm
-
-# Boot in systemd-nspawn
-mkosi --profile bootable boot
-
-# Write to a USB drive (CAREFUL - this overwrites the device!)
-mkosi --profile bootable burn /dev/sdX
+zstd -d mkosi.output/iota_1.0.0_x86-64.raw.zst -o disk-test.raw
+qemu-img resize -f raw disk-test.raw +6G
 ```
 
-## Examples
-
-Each example in the `examples/` directory is a self-contained mkosi project. To use an example, `cd` into its directory and run `mkosi`:
+Boot with OVMF (copying `OVMF_VARS_4M.fd` so EFI variables persist across reboots):
 
 ```bash
-cd examples/01-minimal-server
-mkosi
+cp /usr/share/OVMF/OVMF_VARS_4M.fd ./ovmf_vars.fd
+qemu-system-x86_64 \
+  -enable-kvm -cpu host -m 2G -smp 2 \
+  -drive if=pflash,format=raw,readonly=on,file=/usr/share/OVMF/OVMF_CODE_4M.fd \
+  -drive if=pflash,format=raw,file=./ovmf_vars.fd \
+  -drive file=./disk-test.raw,format=raw,if=virtio \
+  -net nic,model=virtio \
+  -net user,hostfwd=tcp:127.0.0.1:2222-:22 \
+  -nographic
 ```
 
-### Example 1: Minimal Server
+> Note: `mkosi.conf` does not enable serial console output by default (`logo.nologo lsm=selinux`); pass `console=ttyS0,115200n8` on the kernel command line if you want serial console output in `-nographic` mode.
 
-**Directory:** `examples/01-minimal-server/`
+---
 
-The simplest possible Ubuntu image -- just systemd, networking, and SSH. A good starting point for understanding mkosi.
+## Verifying State, Updating & Rollback
+
+Once booted into the VM:
 
 ```bash
-cd examples/01-minimal-server
-mkosi              # Build
-mkosi shell         # Interactive shell
-mkosi boot          # Boot in systemd-nspawn
+# Verify SELinux, OS identity, partition layout, and mounts
+getenforce
+cat /usr/lib/os-release
+lsblk -o NAME,PARTLABEL,PARTUUID,MOUNTPOINTS,SIZE
+findmnt / /var /etc
+
+# Inspect systemd-sysupdate components and available releases
+/usr/lib/systemd/systemd-sysupdate components
+/usr/lib/systemd/systemd-sysupdate list
+
+# Stage an update into the _empty Slot B and install the boot-counted UKI
+/usr/lib/systemd/systemd-sysupdate update
+systemctl reboot
 ```
 
-**Configuration highlights:**
-```ini
-[Distribution]
-Distribution=ubuntu
-Release=noble
-
-[Output]
-Format=directory
-
-[Content]
-Packages=systemd, udev, dbus, openssh-server, sudo
-```
-
-### Example 2: Bootable Disk Image
-
-**Directory:** `examples/02-bootable-disk/`
-
-A full GPT disk image with EFI boot support. Can be booted in qemu/KVM or written to physical media.
+After rebooting into the updated slot:
 
 ```bash
-cd examples/02-bootable-disk
-mkosi              # Build disk image
-mkosi vm            # Boot in qemu
-mkosi burn /dev/sdX # Write to USB drive
+# Verify boot-blessing status and active slot
+/usr/lib/systemd/systemd-bless-boot status
+bootctl status
 ```
 
-**Key settings:**
-- `Format=disk` -- produces a GPT disk image
-- `Bootable=yes` -- installs bootloader and generates UKIs
-- `linux-image-generic` -- the Ubuntu kernel
-- `systemd-boot-efi` -- required for systemd-boot on Debian/Ubuntu
+If a new UKI fails to reach `boot-complete.target` before its 3 boot tries expire, `systemd-boot` automatically falls back to the previous slot while preserving `/var` and the `/etc` overlay.
 
-### Example 3: Container Image
+---
 
-**Directory:** `examples/03-container/`
+## CI/CD Workflows
 
-A lightweight directory image optimized for `systemd-nspawn` containers. No kernel or bootloader -- just the userspace.
-
-```bash
-cd examples/03-container
-mkosi              # Build
-mkosi boot          # Boot in systemd-nspawn container
-mkosi shell         # Interactive shell without booting
-```
-
-**Key settings:**
-- `Format=directory` -- no disk image overhead
-- `Bootable=no` -- skip kernel and bootloader
-
-### Example 4: Custom Packages
-
-**Directory:** `examples/04-custom-packages/`
-
-Demonstrates enabling extra Ubuntu repositories and installing a curated web server stack (nginx, PostgreSQL, Redis, Python).
-
-```bash
-cd examples/04-custom-packages
-mkosi
-mkosi shell
-```
-
-**Ubuntu repository components:**
-| Component | Description |
-|-----------|-------------|
-| `main` | Canonical-supported free software (always enabled) |
-| `universe` | Community-maintained free software |
-| `restricted` | Proprietary drivers |
-| `multiverse` | Software with usage restrictions |
-
-Enable them with:
-```ini
-[Distribution]
-Repositories=universe,multiverse
-```
-
-### Example 5: Development Image
-
-**Directory:** `examples/05-development/`
-
-Demonstrates mkosi's build script support for compiling source code against the image. Build dependencies are installed in an overlay and don't end up in the final image.
-
-```bash
-cd examples/05-development
-mkosi
-mkosi shell
-```
-
-**Key concepts:**
-- `BuildPackages=` -- packages installed in a build overlay (gcc, cmake, etc.)
-- `mkosi.build.chroot` -- script that runs inside the image to compile your project
-- `$SRCDIR` -- your source code directory (mounted from host)
-- `$DESTDIR` -- where to install build output
-- `$BUILDDIR` -- persistent build directory for incremental builds
-
-### Example 6: System Extension (sysext)
-
-**Directory:** `examples/06-sysext/`
-
-Builds a base Ubuntu image and a Docker system extension that layers on top. System extensions allow extending a read-only base OS without modifying it.
-
-```bash
-cd examples/06-sysext
-mkosi              # Builds both base and sysext
-
-# The sysext image will be in mkosi.output/
-# Apply it at runtime with systemd-sysext
-```
-
-**Key settings:**
-- `mkosi.images/base/` -- the base Ubuntu image
-- `mkosi.images/docker-sysext/` -- the Docker extension
-- `Format=sysext` and `Overlay=yes` -- only includes files added on top of the base
-- `BaseTrees=%O/base` -- references the base image output
-- `CleanPackageMetadata=no` -- keeps apt metadata in base for extension installs
-
-### Example 7: Extra Files
-
-**Directory:** `examples/07-extra-files/`
-
-Demonstrates injecting custom configuration files into the image using `mkosi.extra/`. Files are copied into the image root after packages are installed.
-
-```bash
-cd examples/07-extra-files
-mkosi
-mkosi shell
-cat /etc/motd                # Custom MOTD
-cat /etc/sysctl.d/99-custom.conf  # Custom sysctl
-```
-
-**How it works:** Place files in `mkosi.extra/` mirroring the filesystem layout:
-```
-mkosi.extra/
-├── etc/
-│   ├── motd                    # → /etc/motd in the image
-│   └── sysctl.d/
-│       └── 99-custom.conf      # → /etc/sysctl.d/99-custom.conf
-```
-
-### Example 8: Multiple Ubuntu Releases
-
-**Directory:** `examples/08-multi-release/`
-
-Uses mkosi profiles to build images for different Ubuntu releases from the same base configuration.
-
-```bash
-cd examples/08-multi-release
-mkosi --profile noble      # Ubuntu 24.04 LTS
-mkosi --profile jammy      # Ubuntu 22.04 LTS
-mkosi --profile plucky     # Ubuntu 25.04
-```
-
-## mkosi Configuration Reference
-
-### Key Settings for Ubuntu
-
-| Setting | Description | Example |
-|---------|-------------|---------|
-| `Distribution=` | Target distribution | `ubuntu` |
-| `Release=` | Ubuntu release codename | `noble`, `jammy`, `plucky` |
-| `Repositories=` | Enable extra repo components | `universe`, `multiverse`, `restricted` |
-| `Mirror=` | Custom package mirror URL | `http://archive.ubuntu.com` |
-| `Format=` | Output format | `directory`, `disk`, `tar`, `cpio` |
-| `Bootable=` | Include kernel and bootloader | `yes`, `no`, `auto` |
-| `Packages=` | Packages to install | `systemd, openssh-server` |
-| `BuildPackages=` | Build-only packages (overlay) | `gcc, cmake` |
-| `ExtraTrees=` | Extra files to copy into image | `mkosi.extra/` (auto-detected) |
-| `Bootloader=` | EFI bootloader to use | `systemd-boot`, `uki`, `grub` |
-
-### Configuration File Hierarchy
-
-mkosi reads configuration in this order (later overrides earlier):
-
-1. Command line arguments (highest priority)
-2. `mkosi.local.conf` and `mkosi.local/` (gitignored, local overrides)
-3. `mkosi.conf` (main configuration)
-4. `mkosi.conf.d/*.conf` (drop-in files, alphabetical order)
-5. Profile configs from `mkosi.profiles/<name>/`
-
-### Important Files and Directories
-
-| Path | Purpose |
-|------|---------|
-| `mkosi.conf` | Main configuration file |
-| `mkosi.conf.d/` | Drop-in configuration directory |
-| `mkosi.profiles/` | Named configuration profiles |
-| `mkosi.extra/` | Extra files copied into image after package install |
-| `mkosi.skeleton/` | Files copied before package install |
-| `mkosi.build` | Build script (runs on host in sandbox) |
-| `mkosi.build.chroot` | Build script (runs inside the image) |
-| `mkosi.output/` | Build output directory |
-| `mkosi.cache/` | Package download cache (speeds up rebuilds) |
-| `mkosi.builddir/` | Out-of-tree build directory |
-| `mkosi.repart/` | Custom systemd-repart partition definitions |
-
-### Useful Commands
-
-```bash
-mkosi                  # Build the image (default verb)
-mkosi -f               # Force rebuild (remove previous output first)
-mkosi -ff              # Force rebuild + clear incremental cache
-mkosi summary          # Show resolved configuration (dry run)
-mkosi shell            # Interactive shell in the image (no boot)
-mkosi boot             # Boot image in systemd-nspawn container
-mkosi vm               # Boot image in qemu virtual machine
-mkosi ssh              # SSH into a running VM
-mkosi burn /dev/sdX    # Write disk image to block device
-mkosi clean            # Remove build artifacts
-mkosi genkey           # Generate SecureBoot keys
-mkosi serve            # Serve output directory via HTTP
-```
-
-## Troubleshooting
-
-### "Repository not found" or GPG key errors
-
-If building Ubuntu images from a non-Ubuntu host, mkosi needs the Ubuntu GPG keys. Options:
-
-1. Install `ubuntu-keyring` on your host (if available)
-2. Install `distribution-gpg-keys` (Fedora/CentOS)
-3. mkosi will try to fetch keys automatically (`RepositoryKeyFetch=` is enabled by default on Ubuntu)
-
-### "Operation not permitted" or namespace errors
-
-mkosi uses user namespaces for unprivileged builds. If you see permission errors:
-
-- **Ubuntu host:** See the [Unprivileged User Namespaces](#unprivileged-user-namespaces-ubuntu-hosts-only) section above
-- **Other systems:** Check `sysctl kernel.unprivileged_userns_clone` and ensure it's set to `1`
-
-### KVM not available in `mkosi vm`
-
-On Debian/Ubuntu hosts, `/dev/kvm` is restricted to the `kvm` group. Since mkosi uses user namespaces, group membership is lost. Workaround:
-
-```bash
-# Temporary fix
-sudo chmod 0666 /dev/kvm
-
-# Permanent fix: copy and modify the tmpfiles config
-sudo cp /usr/lib/tmpfiles.d/static-nodes-permissions.conf /etc/tmpfiles.d/
-# Edit /etc/tmpfiles.d/static-nodes-permissions.conf and change
-# the mode of /dev/kvm from 0660 to 0666
-```
-
-### Slow builds
-
-Speed up rebuilds with caching:
-
-```bash
-# Create a package cache directory (automatic if it exists)
-mkdir mkosi.cache
-
-# Use incremental builds (reuse installed packages between builds)
-# Add to mkosi.conf:
-#   [Build]
-#   Incremental=yes
-
-# Force rebuild but keep cache:
-mkosi -f
-
-# Force rebuild and clear all caches:
-mkosi -fff
-```
-
-## References
-
-- [mkosi GitHub repository](https://github.com/systemd/mkosi)
-- [mkosi documentation (man page)](https://github.com/systemd/mkosi/blob/main/mkosi/resources/man/mkosi.1.md)
-- [mkosi website](https://mkosi.systemd.io/)
-- [A re-introduction to mkosi](https://0pointer.net/blog/a-re-introduction-to-mkosi-a-tool-for-generating-os-images.html) -- Detailed blog post by the mkosi maintainer
-- [Building RHEL and RHEL UBI images with mkosi](https://fedoramagazine.org/create-images-directly-from-rhel-and-rhel-ubi-package-using-mkosi/) -- Fedora Magazine article
-- [mkosi Matrix channel](https://matrix.to/#/#mkosi:matrix.org) -- Community chat
-
-## License
-
-This project is provided as-is for educational purposes. The mkosi configurations and examples are free to use and adapt.
+- **Verify (`test.yml`):** Runs on pull requests and manual dispatch. Builds `1.0.0` and `1.0.1`, resizes the disk by `+6G`, boots `1.0.0` in QEMU/OVMF, validates `systemd-repart`, `_empty` Slot B, `/var`, `/etc` overlay, and SELinux `Enforcing`, serves `1.0.1` over HTTP, runs `systemd-sysupdate update --verify=no`, reboots into Slot B (`iota_1.0.1`), verifies `systemd-bless-boot` and state persistence, and simulates a failed boot (`+1-0`) to confirm automatic rollback to `iota_1.0.0`.
+- **Build & Release (`build.yml`):** Runs on pushes to `main`, `workflow_dispatch`, or calls from `shell.yml`. Runs `test.yml`, builds date-versioned artifacts (`YYYYMMDD` / `YYYYMMDD.N`), signs `SHA256SUMS` with GPG, and publishes a GitHub Release.
+- **Update Check (`shell.yml`):** On `workflow_dispatch`, downloads the latest released root partition image, mounts it, and runs `dnf check-update` against `/usr/lib/sysimage/rpm/rpmdb.sqlite` inside an `almalinux` container. If package updates are available, it invokes `build.yml` with generated package diff release notes.
