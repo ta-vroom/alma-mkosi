@@ -58,8 +58,9 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          gh release download -R "${{ github.repository }}" -p "alma_*.root-x86-64.*.raw.zst"
-          ROOT_ZST=$(find . -maxdepth 1 -name 'alma_*.root-x86-64.*.raw.zst' ! -name '*verity*' | head -n 1)
+          gh release download -R "${{ github.repository }}" -p "iota_*.root-x86-64.*.raw.zst" \
+            || gh release download -R "${{ github.repository }}" -p "alma_*.root-x86-64.*.raw.zst"
+          ROOT_ZST=$(find . -maxdepth 1 \( -name 'iota_*.root-x86-64.*.raw.zst' -o -name 'alma_*.root-x86-64.*.raw.zst' \) ! -name '*verity*' | head -n 1)
           if [ -z "$ROOT_ZST" ]; then
             echo "::error::Could not find root partition image in latest release"
             exit 1
@@ -155,7 +156,7 @@ jobs:
           if mountpoint -q ./mnt; then
             sudo umount ./mnt
           fi
-          rm -f ./root.raw ./release_notes.md alma_*.raw.zst
+          rm -f ./root.raw ./release_notes.md iota_*.raw.zst alma_*.raw.zst
 
   build_release:
     needs: cache-test
