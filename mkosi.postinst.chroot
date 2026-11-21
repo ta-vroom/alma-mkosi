@@ -44,9 +44,12 @@ ln -sf var/srv /srv
 (
     cd /usr/share/selinux/iota
     checkmodule -M -m -o iota_bless.mod iota_bless.te
+    checkmodule -M -m -o iota_sysupdate.mod iota_sysupdate.te
     semodule_package -o iota_bless.pp -m iota_bless.mod
+    semodule_package -o iota_sysupdate.pp -m iota_sysupdate.mod
     semodule -n -i iota_bless.pp
-    rm -f iota_bless.mod
+    semodule -n -i iota_sysupdate.pp
+    rm -f iota_bless.mod iota_sysupdate.mod
 )
 
 (

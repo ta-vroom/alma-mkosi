@@ -1,4 +1,4 @@
-module iota_sysupdate 1.0;
+module iota_bless 1.0;
 
 require {
     type init_t;
@@ -7,10 +7,6 @@ require {
     class file { create getattr setattr read write append open rename unlink lock };
     class dir  { getattr search read open write add_name remove_name };
 }
-
-# systemd-pull writing the partial download to the ESP
-allow systemd_importd_t dosfs_t:dir  { getattr search read open write add_name remove_name };
-allow systemd_importd_t dosfs_t:file { create getattr setattr read write append open rename unlink lock };
 
 # sysupdate / bless-boot finalizing and cleaning up on the ESP
 allow init_t dosfs_t:dir  { getattr search read open write add_name remove_name };
